@@ -145,6 +145,7 @@ export async function getDetalhesLicitacao(boletimId: number): Promise<ApiRespon
   }
   return { success: true, data: responseData, status: response.status };
  } catch (err: unknown) {
+
   return handleApiError(err, `Erro ao buscar detalhes do boletim ${boletimId}`);
  }
 }
