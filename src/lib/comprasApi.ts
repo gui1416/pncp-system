@@ -1,4 +1,3 @@
-// src/lib/comprasApi.ts
 import axios, { AxiosError } from 'axios';
 import { ApiResponse, ComprasLicitacao, VwFtContrato, PncpLicitacao, PncpApiResponse } from './types';
 import { ExtractedFilters } from './extractFilters';
@@ -86,13 +85,12 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
  return modalidadesMap[normalizedName];
 }
 
-// Códigos de todas as modalidades conforme documentação (seção 5.2)
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
 export async function buscarLicitacoesPNCP(
  filters: ExtractedFilters,
  page = 1,
- perPage = 50 // Mantido em 50 para evitar o erro de "Tamanho de página inválido"
+ perPage = 50
 ): Promise<ApiResponse<PncpApiResponse<PncpLicitacao>>> {
  try {
   console.log(`📞 Chamando buscarLicitacoesPNCP com filtros:`, filters);
@@ -120,7 +118,6 @@ export async function buscarLicitacoesPNCP(
   let allLicitacoes: PncpLicitacao[] = [];
   let totalCombinedRecords = 0;
 
-  // Se uma modalidade específica foi fornecida
   if (filters.modalidade) {
    const codigoModalidade = getPncpModalidadeCodigo(filters.modalidade);
    if (codigoModalidade !== undefined) {
@@ -159,18 +156,17 @@ export async function buscarLicitacoesPNCP(
 
   console.log(`✅ Sucesso ao buscar licitações (editais e avisos) do PNCP. Total de registros combinados: ${totalCombinedRecords}`);
 
-  // Retorna uma resposta combinada
   return {
    success: true,
    data: {
     data: allLicitacoes,
     totalRegistros: totalCombinedRecords,
-    totalPaginas: 1, // Simplificado para uma única página combinada
+    totalPaginas: 1,
     numeroPagina: 1,
     paginasRestantes: 0,
     empty: allLicitacoes.length === 0,
    },
-   status: 200 // Assumindo sucesso se ao menos algumas chamadas foram bem-sucedidas
+   status: 200
   };
 
  } catch (err: unknown) {

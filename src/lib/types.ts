@@ -1,4 +1,3 @@
-// src/lib/types.ts
 export interface OrgaoCompras {
  nomeOrgaoEntidade: string;
  nomeUnidadeOrgao: string;
@@ -11,7 +10,6 @@ export interface DocumentoCompras {
  url: string;
 }
 
-// Existing interface for ComprasLicitacao (from original `comprasApi.get(/boletim/${boletimId})`)
 export interface ComprasLicitacao {
  idCompra: string;
  numeroControlePNCP: string;
@@ -37,7 +35,6 @@ export interface ComprasLicitacao {
  informacaoComplementar?: string;
 }
 
-// Existing interface for VwFtContrato (from original `contratosApi.get(/comprasContratos/doc/contrato/${idContrato})`)
 export interface VwFtContrato {
  idCompra: string;
  identificador: string;
@@ -99,8 +96,6 @@ export interface VwFtContrato {
  unidadesRequisitantes?: string;
 }
 
-// Existing Interface for contracts from PNCP CONSULTAS API (/v1/contratos)
-// This will NOT be used for the new search, but kept for clarity if needed elsewhere.
 export interface PncpContrato {
  numeroControlePNCP: string;
  numeroControlePNCPCompra: string;
@@ -133,13 +128,13 @@ export interface PncpContrato {
   ufSigla: string;
   ufNome: string;
  };
- orgaoSubRogado?: { // Opcional, pode não vir
+ orgaoSubRogado?: {
   cnpj: string;
   razaoSocial: string;
   poderId: string;
   esferaId: string;
  };
- unidadeSubRogada?: { // Opcional, pode não vir
+ unidadeSubRogada?: {
   codigoUnidade: string;
   nomeUnidade: string;
   municipioId: number;
@@ -150,9 +145,9 @@ export interface PncpContrato {
  tipoPessoa: string;
  niFornecedor: string;
  nomeRazaoSocialFornecedor: string;
- tipoPessoaSubContratada?: string; // Opcional
- niFornecedorSubContratado?: string; // Opcional
- nomeFornecedorSubContratado?: string; // Opcional
+ tipoPessoaSubContratada?: string;
+ niFornecedorSubContratado?: string;
+ nomeFornecedorSubContratado?: string;
  valorInicial: number;
  numeroParcelas: number;
  valorParcela: number;
@@ -163,19 +158,17 @@ export interface PncpContrato {
  dataVigenciaFim: string;
  numeroRetificacao: number;
  usuarioNome: string;
- dataPublicacaoPncp: string; // Data e Hora
- dataAtualizacao: string; // Data e Hora
- identificadorCipi?: string; // Opcional
- urlCipi?: string; // Opcional
+ dataPublicacaoPncp: string;
+ dataAtualizacao: string;
+ identificadorCipi?: string;
+ urlCipi?: string;
 }
 
-
-// NEW INTERFACE for PNCP CONSULTAS API (/v1/contratacoes/publicacao or /v1/contratacoes/proposta)
 export interface PncpLicitacao {
  numeroControlePNCP: string;
  numeroCompra: string;
  anoCompra: number;
- processo?: string; // It's optional based on the other file.
+ processo?: string;
  tipoInstrumentoConvocatorioId: number;
  tipoInstrumentoConvocatorioNome: string;
  modalidadeId: number;
@@ -185,17 +178,17 @@ export interface PncpLicitacao {
  situacaoCompraId: number;
  situacaoCompraNome: string;
  objetoCompra: string;
- informacaoComplementar?: string; // Optional
+ informacaoComplementar?: string;
  srp: boolean;
- amparoLegal?: { // This is a complex object in the manual, simplifying to optional.
+ amparoLegal?: {
   codigo: number;
   nome: string;
   descricao: string;
  };
- valorTotalEstimado?: number; // Optional
- valorTotalHomologado?: number; // Optional
- dataAberturaProposta?: string; // Optional
- dataEncerramentoProposta?: string; // Optional
+ valorTotalEstimado?: number;
+ valorTotalHomologado?: number;
+ dataAberturaProposta?: string;
+ dataEncerramentoProposta?: string;
  dataPublicacaoPncp: string;
  dataInclusao: string;
  dataAtualizacao: string;
@@ -209,28 +202,28 @@ export interface PncpLicitacao {
  unidadeOrgao: {
   codigoUnidade: string;
   nomeUnidade: string;
-  codigoIbge: number; // Changed from municipioId in PncpContrato to codigoIbge as per manual
+  codigoIbge: number;
   municipioNome: string;
   ufSigla: string;
   ufNome: string;
  };
- orgaoSubRogado?: { // Optional
+ orgaoSubRogado?: {
   cnpj: string;
   razaoSocial: string;
   poderId: string;
   esferaId: string;
  };
- unidadeSubRogada?: { // Optional
+ unidadeSubRogada?: {
   codigoUnidade: string;
   nomeUnidade: string;
-  codigoIbge: number; // Changed from municipioId
+  codigoIbge: number;
   municipioNome: string;
   ufSigla: string;
   ufNome: string;
  };
- usuarioNome?: string; // Optional
- linkSistemaOrigem?: string; // Optional
- justificativaPresencial?: string; // Optional
+ usuarioNome?: string;
+ linkSistemaOrigem?: string;
+ justificativaPresencial?: string;
 }
 
 

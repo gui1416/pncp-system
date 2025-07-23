@@ -1,4 +1,3 @@
-// src/app/api/contratos-id/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getDetalhesContrato } from '@/lib/comprasApi';
 

@@ -8,13 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster, toast } from "sonner"
-import { type PncpLicitacao as Licitacao } from "@/lib/types" // Changed import and alias
+import { type PncpLicitacao as Licitacao } from "@/lib/types"
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
 export default function Home() {
   const [question, setQuestion] = useState("")
-  const [resultados, setResultados] = useState<Licitacao[]>([]) // Changed type
+  const [resultados, setResultados] = useState<Licitacao[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [lastSearchQuestion, setLastSearchQuestion] = useState<string | null>(null);
 
@@ -43,7 +43,7 @@ export default function Home() {
 
       setResultados(data.resultados || []);
       if (!data.resultados?.length) {
-        toast.info("Nenhuma licitação (edital/aviso) encontrada para os critérios informados."); // Updated message
+        toast.info("Nenhuma licitação (edital/aviso) encontrada para os critérios informados.");
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
@@ -65,9 +65,8 @@ export default function Home() {
 
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
     const status = s?.toUpperCase() || '';
-    // Based on ManualPNCPAPIConsultasVerso1.0.pdf, Section 5.5. Situação da Contratação
-    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive"; // Corresponds to códigos 2, 3, 4
-    if (["DIVULGADA NO PNCP"].includes(status)) return "default"; // Corresponds to código 1
+    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
+    if (["DIVULGADA NO PNCP"].includes(status)) return "default";
     return "secondary";
   };
 
@@ -75,8 +74,8 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="container mx-auto py-4 px-4">
-          <h1 className="text-2xl font-bold text-gray-800">Licitações PNCP</h1> {/* Updated title */}
-          <p className="text-sm text-gray-500">Busca inteligente e abrangente em licitações (editais e avisos) públicas do Portal Nacional de Contratações Públicas</p> {/* Updated description */}
+          <h1 className="text-2xl font-bold text-gray-800">Licitações PNCP</h1>
+          <p className="text-sm text-gray-500">Busca inteligente e abrangente em licitações (editais e avisos) públicas do Portal Nacional de Contratações Públicas</p>
         </div>
       </header>
 
@@ -90,7 +89,7 @@ export default function Home() {
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Busque por licitações de limpeza em SP nos últimos 7 dias..." // Updated placeholder
+                  placeholder="Busque por licitações de limpeza em SP nos últimos 7 dias..."
                   className="pl-10 h-11"
                   disabled={isLoading}
                 />
@@ -110,19 +109,19 @@ export default function Home() {
         ) : resultados.length > 0 ? (
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Resultados da Busca ({resultados.length} licitações encontradas)</CardTitle> {/* Updated title */}
+              <CardTitle>Resultados da Busca ({resultados.length} licitações encontradas)</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-6">
-                {resultados.map((licitacao) => ( // Changed variable name
+                {resultados.map((licitacao) => (
                   <li key={licitacao.numeroControlePNCP} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
-                      <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4> {/* Changed field */}
+                      <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 self-start md:self-auto">
-                        {licitacao.tipoInstrumentoConvocatorioNome && ( // Changed field
+                        {licitacao.tipoInstrumentoConvocatorioNome && (
                           <Badge variant="outline" className="whitespace-nowrap">
                             <FileText className="w-3.5 h-3.5 mr-1.5" />
-                            {licitacao.tipoInstrumentoConvocatorioNome} {/* Changed field */}
+                            {licitacao.tipoInstrumentoConvocatorioNome}
                           </Badge>
                         )}
                         {licitacao.modalidadeNome && (
@@ -131,7 +130,7 @@ export default function Home() {
                             {licitacao.modalidadeNome}
                           </Badge>
                         )}
-                        <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize">{licitacao.situacaoCompraNome?.toLowerCase() ?? 'n/a'}</Badge> {/* Changed field */}
+                        <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize">{licitacao.situacaoCompraNome?.toLowerCase() ?? 'n/a'}</Badge>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 mb-4">
@@ -169,7 +168,7 @@ export default function Home() {
               <CardContent className="py-16 text-center">
                 <AlertCircle className="h-12 w-12 mx-auto text-gray-400" />
                 <h3 className="mt-4 text-lg font-medium text-gray-900">Nenhum resultado encontrado</h3>
-                <p className="mt-1 text-sm text-gray-500">Sua busca por &quot;{lastSearchQuestion}&quot; não retornou resultados de licitações (editais/avisos) na API PNCP.</p> {/* Updated message */}
+                <p className="mt-1 text-sm text-gray-500">Sua busca por &quot;{lastSearchQuestion}&quot; não retornou resultados de licitações (editais/avisos) na API PNCP.</p>
               </CardContent>
             </Card>
           )

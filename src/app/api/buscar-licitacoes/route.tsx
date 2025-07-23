@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFilters } from '@/lib/extractFilters';
-import { buscarLicitacoesPNCP } from '@/lib/comprasApi'; // Changed import
-import { PncpLicitacao } from '@/lib/types'; // Changed import
+import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
+import { PncpLicitacao } from '@/lib/types';
 
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const extractedInfo = await extractFilters(question);
     console.log("Filtros extraídos pelo Gemini:", extractedInfo);
 
-    const pncpResponse = await buscarLicitacoesPNCP(extractedInfo); // Changed function call
+    const pncpResponse = await buscarLicitacoesPNCP(extractedInfo);
 
     if (!pncpResponse.success || !pncpResponse.data?.data) {
       console.error("Erro na resposta da API PNCP:", pncpResponse.error);
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data; // Changed type and variable name
+    const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data;
 
     const { palavrasChave, sinonimos, valorMin, valorMax } = extractedInfo;
 
@@ -60,12 +60,12 @@ export async function POST(req: NextRequest) {
       ...sinonimos.flat().map(s => s.toLowerCase())
     ].filter(term => term.length > 0);
 
-    const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => { // Changed variable name
-      const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || ''; // Changed field name
+    const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => {
+      const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || '';
       const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoLicitacao.includes(term));
       if (!objetoOk) return false;
 
-      // Use valorTotalEstimado for filtering as valorGlobal is for contracts, not licitacoes
+
       const valorParaComparar = licitacao.valorTotalEstimado ?? 0;
 
       const valorMinOk = (valorMin === null || valorParaComparar >= valorMin);
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-    console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`); // Updated log
+    console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`);
     return NextResponse.json({ resultados: licitacoesFiltradas }, { status: 200 });
 
   } catch (error: unknown) {
