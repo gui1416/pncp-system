@@ -1,8 +1,6 @@
-// src/utils/extractFilters.ts
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import { format } from 'date-fns';
 
-// Garante que a chave seja verificada corretamente no nível do módulo
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
   throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
@@ -10,7 +8,6 @@ if (!process.env.GOOGLE_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-// Interface atualizada para incluir datas
 export interface ExtractedFilters {
   palavrasChave: string[];
   sinonimos: string[][];
@@ -18,15 +15,10 @@ export interface ExtractedFilters {
   valorMax: number | null;
   estado: string | null;
   modalidade: string | null;
-  dataInicial: string | null; // Formato YYYY-MM-DD
-  dataFinal: string | null;   // Formato YYYY-MM-DD
+  dataInicial: string | null;
+  dataFinal: string | null;
 }
 
-/**
- * Extrai filtros estruturados de uma pergunta em linguagem natural usando a API Gemini.
- * @param question A pergunta do usuário sobre licitações.
- * @returns Uma promessa que resolve para um objeto ExtractedFilters.
- */
 export async function extractFilters(question: string): Promise<ExtractedFilters> {
   const defaultResponse: ExtractedFilters = {
     palavrasChave: [],
@@ -48,8 +40,6 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   const hoje = new Date();
   const dataAtualFormatada = format(hoje, 'yyyy-MM-dd');
 
-  // --- PROMPT OTIMIZADO ---
-  // 1. Adicionada regra explícita para "últimos X dias".
   const prompt = `
 <MISSION>
 Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
