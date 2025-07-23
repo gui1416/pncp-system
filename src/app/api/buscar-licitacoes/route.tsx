@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFilters } from '@/lib/extractFilters';
-import { buscarContratosPNCP } from '@/lib/comprasApi';
-import { PncpContrato } from '@/lib/types';
+import { buscarLicitacoesPNCP } from '@/lib/comprasApi'; // Changed import
+import { PncpLicitacao } from '@/lib/types'; // Changed import
 
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
@@ -41,17 +41,17 @@ export async function POST(req: NextRequest) {
     const extractedInfo = await extractFilters(question);
     console.log("Filtros extraídos pelo Gemini:", extractedInfo);
 
-    const pncpResponse = await buscarContratosPNCP(extractedInfo);
+    const pncpResponse = await buscarLicitacoesPNCP(extractedInfo); // Changed function call
 
     if (!pncpResponse.success || !pncpResponse.data?.data) {
       console.error("Erro na resposta da API PNCP:", pncpResponse.error);
       return NextResponse.json(
-        { error: pncpResponse.error || "Não foi possível obter contratos da API PNCP." },
+        { error: pncpResponse.error || "Não foi possível obter licitações (editais e avisos) da API PNCP." },
         { status: pncpResponse.status || 500 }
       );
     }
 
-    const contratosEncontrados: PncpContrato[] = pncpResponse.data.data;
+    const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data; // Changed type and variable name
 
     const { palavrasChave, sinonimos, valorMin, valorMax } = extractedInfo;
 
@@ -60,12 +60,13 @@ export async function POST(req: NextRequest) {
       ...sinonimos.flat().map(s => s.toLowerCase())
     ].filter(term => term.length > 0);
 
-    const contratosFiltrados = contratosEncontrados.filter(contrato => {
-      const objetoContrato = contrato.objetoContrato?.toLowerCase() || '';
-      const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoContrato.includes(term));
+    const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => { // Changed variable name
+      const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || ''; // Changed field name
+      const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoLicitacao.includes(term));
       if (!objetoOk) return false;
 
-      const valorParaComparar = contrato.valorGlobal ?? 0;
+      // Use valorTotalEstimado for filtering as valorGlobal is for contracts, not licitacoes
+      const valorParaComparar = licitacao.valorTotalEstimado ?? 0;
 
       const valorMinOk = (valorMin === null || valorParaComparar >= valorMin);
       const valorMaxOk = (valorMax === null || valorParaComparar <= valorMax);
@@ -75,8 +76,8 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-    console.log(`✅ Requisição processada. Enviando ${contratosFiltrados.length} contratos filtrados.`);
-    return NextResponse.json({ resultados: contratosFiltrados }, { status: 200 });
+    console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`); // Updated log
+    return NextResponse.json({ resultados: licitacoesFiltradas }, { status: 200 });
 
   } catch (error: unknown) {
     console.error(`❌ Erro crítico ao processar requisição em /api/buscar-licitacoes:`, error);
