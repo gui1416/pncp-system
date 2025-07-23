@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper } from "lucide-react" // 'Download' removido daqui
+import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,10 +61,7 @@ export default function Home() {
 
   const formatCurrency = (v: number | null | undefined) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  // Usei formatGenericDateTime para as datas do PNCP, então formatDateOnly se tornou redundante.
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
-  // Removendo formatDateOnly pois não está sendo utilizada:
-  // const formatDateOnly = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("pt-BR", { timeZone: 'UTC' }) : "Não informado";
 
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
     const status = s?.toUpperCase() || '';
