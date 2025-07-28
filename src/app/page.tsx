@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster, toast } from "sonner"
 import { type PncpLicitacao as Licitacao } from "@/lib/types"
 
+
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
 export default function Home() {
@@ -65,8 +66,9 @@ export default function Home() {
 
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
     const status = s?.toUpperCase() || '';
-    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
-    if (["DIVULGADA NO PNCP"].includes(status)) return "default";
+    // Based on ManualPNCPAPIConsultasVerso1.0.pdf, Section 5.5. Situação da Contratação
+    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive"; // Corresponds to códigos 2, 3, 4
+    if (["DIVULGADA NO PNCP"].includes(status)) return "default"; // Corresponds to código 1
     return "secondary";
   };
 
@@ -131,6 +133,7 @@ export default function Home() {
                           </Badge>
                         )}
                         <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize">{licitacao.situacaoCompraNome?.toLowerCase() ?? 'n/a'}</Badge>
+
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 mb-4">

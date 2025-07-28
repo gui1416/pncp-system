@@ -10,6 +10,7 @@ export interface DocumentoCompras {
  url: string;
 }
 
+// Existing interface for ComprasLicitacao (from original `comprasApi.get(/boletim/${boletimId})`)
 export interface ComprasLicitacao {
  idCompra: string;
  numeroControlePNCP: string;
@@ -35,6 +36,7 @@ export interface ComprasLicitacao {
  informacaoComplementar?: string;
 }
 
+// Existing interface for VwFtContrato (from original `contratosApi.get(/comprasContratos/doc/contrato/${idContrato})`)
 export interface VwFtContrato {
  idCompra: string;
  identificador: string;
@@ -96,6 +98,11 @@ export interface VwFtContrato {
  unidadesRequisitantes?: string;
 }
 
+<<<<<<< HEAD
+=======
+// Existing Interface for contracts from PNCP CONSULTAS API (/v1/contratos)
+// This will NOT be used for the new search, but kept for clarity if needed elsewhere.
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 export interface PncpContrato {
  numeroControlePNCP: string;
  numeroControlePNCPCompra: string;
@@ -164,11 +171,20 @@ export interface PncpContrato {
  urlCipi?: string;
 }
 
+<<<<<<< HEAD
+=======
+
+// NEW INTERFACE for PNCP CONSULTAS API (/v1/contratacoes/publicacao or /v1/contratacoes/proposta)
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 export interface PncpLicitacao {
  numeroControlePNCP: string;
  numeroCompra: string;
  anoCompra: number;
+<<<<<<< HEAD
  processo?: string;
+=======
+ processo?: string; // It's optional based on the other file.
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
  tipoInstrumentoConvocatorioId: number;
  tipoInstrumentoConvocatorioNome: string;
  modalidadeId: number;
@@ -178,17 +194,30 @@ export interface PncpLicitacao {
  situacaoCompraId: number;
  situacaoCompraNome: string;
  objetoCompra: string;
+<<<<<<< HEAD
  informacaoComplementar?: string;
  srp: boolean;
  amparoLegal?: {
+=======
+ informacaoComplementar?: string; // Optional
+ srp: boolean;
+ amparoLegal?: { // This is a complex object in the manual, simplifying to optional.
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   codigo: number;
   nome: string;
   descricao: string;
  };
+<<<<<<< HEAD
  valorTotalEstimado?: number;
  valorTotalHomologado?: number;
  dataAberturaProposta?: string;
  dataEncerramentoProposta?: string;
+=======
+ valorTotalEstimado?: number; // Optional
+ valorTotalHomologado?: number; // Optional
+ dataAberturaProposta?: string; // Optional
+ dataEncerramentoProposta?: string; // Optional
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
  dataPublicacaoPncp: string;
  dataInclusao: string;
  dataAtualizacao: string;
@@ -202,28 +231,49 @@ export interface PncpLicitacao {
  unidadeOrgao: {
   codigoUnidade: string;
   nomeUnidade: string;
+<<<<<<< HEAD
   codigoIbge: number;
+=======
+  codigoIbge: number; // Changed from municipioId in PncpContrato to codigoIbge as per manual
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   municipioNome: string;
   ufSigla: string;
   ufNome: string;
  };
+<<<<<<< HEAD
  orgaoSubRogado?: {
+=======
+ orgaoSubRogado?: { // Optional
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   cnpj: string;
   razaoSocial: string;
   poderId: string;
   esferaId: string;
  };
+<<<<<<< HEAD
  unidadeSubRogada?: {
   codigoUnidade: string;
   nomeUnidade: string;
   codigoIbge: number;
+=======
+ unidadeSubRogada?: { // Optional
+  codigoUnidade: string;
+  nomeUnidade: string;
+  codigoIbge: number; // Changed from municipioId
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   municipioNome: string;
   ufSigla: string;
   ufNome: string;
  };
+<<<<<<< HEAD
  usuarioNome?: string;
  linkSistemaOrigem?: string;
  justificativaPresencial?: string;
+=======
+ usuarioNome?: string; // Optional
+ linkSistemaOrigem?: string; // Optional
+ justificativaPresencial?: string; // Optional
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 }
 
 

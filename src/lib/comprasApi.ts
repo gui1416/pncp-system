@@ -85,12 +85,20 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
  return modalidadesMap[normalizedName];
 }
 
+<<<<<<< HEAD
+=======
+// Códigos de todas as modalidades conforme documentação (seção 5.2)
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
 export async function buscarLicitacoesPNCP(
  filters: ExtractedFilters,
  page = 1,
+<<<<<<< HEAD
  perPage = 50
+=======
+ perPage = 50 // Mantido em 50 para evitar o erro de "Tamanho de página inválido"
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 ): Promise<ApiResponse<PncpApiResponse<PncpLicitacao>>> {
  try {
   console.log(`📞 Chamando buscarLicitacoesPNCP com filtros:`, filters);
@@ -118,6 +126,10 @@ export async function buscarLicitacoesPNCP(
   let allLicitacoes: PncpLicitacao[] = [];
   let totalCombinedRecords = 0;
 
+<<<<<<< HEAD
+=======
+  // Se uma modalidade específica foi fornecida
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   if (filters.modalidade) {
    const codigoModalidade = getPncpModalidadeCodigo(filters.modalidade);
    if (codigoModalidade !== undefined) {
@@ -156,17 +168,29 @@ export async function buscarLicitacoesPNCP(
 
   console.log(`✅ Sucesso ao buscar licitações (editais e avisos) do PNCP. Total de registros combinados: ${totalCombinedRecords}`);
 
+<<<<<<< HEAD
+=======
+  // Retorna uma resposta combinada
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   return {
    success: true,
    data: {
     data: allLicitacoes,
     totalRegistros: totalCombinedRecords,
+<<<<<<< HEAD
     totalPaginas: 1,
+=======
+    totalPaginas: 1, // Simplificado para uma única página combinada
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
     numeroPagina: 1,
     paginasRestantes: 0,
     empty: allLicitacoes.length === 0,
    },
+<<<<<<< HEAD
    status: 200
+=======
+   status: 200 // Assumindo sucesso se ao menos algumas chamadas foram bem-sucedidas
+>>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
   };
 
  } catch (err: unknown) {
