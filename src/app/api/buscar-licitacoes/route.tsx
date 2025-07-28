@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFilters } from '@/lib/extractFilters';
-<<<<<<< HEAD
 import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
 import { PncpLicitacao } from '@/lib/types';
-=======
-import { buscarLicitacoesPNCP } from '@/lib/comprasApi'; // Changed import
-import { PncpLicitacao } from '@/lib/types'; // Changed import
->>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
@@ -46,11 +41,7 @@ export async function POST(req: NextRequest) {
     const extractedInfo = await extractFilters(question);
     console.log("Filtros extraídos pelo Gemini:", extractedInfo);
 
-<<<<<<< HEAD
     const pncpResponse = await buscarLicitacoesPNCP(extractedInfo);
-=======
-    const pncpResponse = await buscarLicitacoesPNCP(extractedInfo); // Changed function call
->>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 
     if (!pncpResponse.success || !pncpResponse.data?.data) {
       console.error("Erro na resposta da API PNCP:", pncpResponse.error);
@@ -60,11 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-<<<<<<< HEAD
     const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data;
-=======
-    const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data; // Changed type and variable name
->>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 
     const { palavrasChave, sinonimos, valorMin, valorMax, blacklist, smartBlacklist } = extractedInfo;
 
@@ -73,7 +60,6 @@ export async function POST(req: NextRequest) {
       ...sinonimos.flat().map(s => s.toLowerCase())
     ].filter(term => term.length > 0);
 
-<<<<<<< HEAD
     const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => {
       const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || '';
 
@@ -87,15 +73,6 @@ export async function POST(req: NextRequest) {
         console.log(`🚫 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na blacklist: "${objetoLicitacao}" contém [${blacklist.filter(t => objetoLicitacao.includes(t)).join(', ')}]`);
         return false;
       }
-=======
-    const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => { // Changed variable name
-      const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || ''; // Changed field name
-      const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoLicitacao.includes(term));
-      if (!objetoOk) return false;
-
-      // Use valorTotalEstimado for filtering as valorGlobal is for contracts, not licitacoes
-      const valorParaComparar = licitacao.valorTotalEstimado ?? 0;
->>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
 
       // Smart Blacklist filtering (exclude if a smart blacklist term is present AND no positive keyword is explicitly present for that term)
       const isSmartBlacklisted = smartBlacklist.some(sbt => {
@@ -125,11 +102,7 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-<<<<<<< HEAD
     console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`);
-=======
-    console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`); // Updated log
->>>>>>> 4839f98f8bf990f823d4ab9615de04834fab7595
     return NextResponse.json({ resultados: licitacoesFiltradas }, { status: 200 });
 
   } catch (error: unknown) {
