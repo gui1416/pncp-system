@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     const licitacoesEncontradas: PncpLicitacao[] = pncpResponse.data.data;
 
-    const { palavrasChave, sinonimos, valorMin, valorMax } = extractedInfo;
+    const { palavrasChave, sinonimos, valorMin, valorMax, blacklist, smartBlacklist } = extractedInfo;
 
     const searchTerms = [
       ...palavrasChave.map(k => k.toLowerCase()),
@@ -62,12 +62,38 @@ export async function POST(req: NextRequest) {
 
     const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => {
       const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || '';
+
+      // Positive filtering (what we want to see)
       const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoLicitacao.includes(term));
       if (!objetoOk) return false;
 
+      // Blacklist filtering (explicitly exclude these terms)
+      const isBlacklisted = blacklist.some(term => objetoLicitacao.includes(term));
+      if (isBlacklisted) {
+        console.log(`🚫 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na blacklist: "${objetoLicitacao}" contém [${blacklist.filter(t => objetoLicitacao.includes(t)).join(', ')}]`);
+        return false;
+      }
 
+      // Smart Blacklist filtering (exclude if a smart blacklist term is present AND no positive keyword is explicitly present for that term)
+      const isSmartBlacklisted = smartBlacklist.some(sbt => {
+        // If the smart blacklist term is present in the object
+        if (objetoLicitacao.includes(sbt)) {
+          // Check if any of the positive search terms (keywords or synonyms) are also present.
+          // If no positive search term is present, then this smart blacklist term is relevant for exclusion.
+          const isPositiveTermPresent = searchTerms.some(term => objetoLicitacao.includes(term));
+          if (!isPositiveTermPresent) {
+            console.log(`🧠 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na smart blacklist sem termos positivos: "${objetoLicitacao}" contém "${sbt}"`);
+            return true; // Exclude this item
+          }
+        }
+        return false;
+      });
+
+      if (isSmartBlacklisted) return false;
+
+
+      // Value filtering
       const valorParaComparar = licitacao.valorTotalEstimado ?? 0;
-
       const valorMinOk = (valorMin === null || valorParaComparar >= valorMin);
       const valorMaxOk = (valorMax === null || valorParaComparar <= valorMax);
 

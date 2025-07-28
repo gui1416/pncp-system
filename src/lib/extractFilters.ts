@@ -1,6 +1,8 @@
+// src/lib/extractFilters.ts
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import { format } from 'date-fns';
 
+// Garante que a chave seja verificada corretamente no nível do módulo
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
   throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
@@ -8,6 +10,7 @@ if (!process.env.GOOGLE_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
+// Interface atualizada para incluir datas e novos filtros de rejeição
 export interface ExtractedFilters {
   palavrasChave: string[];
   sinonimos: string[][];
@@ -15,10 +18,17 @@ export interface ExtractedFilters {
   valorMax: number | null;
   estado: string | null;
   modalidade: string | null;
-  dataInicial: string | null;
-  dataFinal: string | null;
+  dataInicial: string | null; // Formato YYYY-MM-DD
+  dataFinal: string | null;   // Formato YYYY-MM-DD
+  blacklist: string[];      // Termos que NUNCA devem aparecer nos resultados
+  smartBlacklist: string[]; // Termos que devem ser excluídos se relacionados a palavrasChave, mas não explicitamente desejados
 }
 
+/**
+ * Extrai filtros estruturados de uma pergunta em linguagem natural usando a API Gemini.
+ * @param question A pergunta do usuário sobre licitações.
+ * @returns Uma promessa que resolve para um objeto ExtractedFilters.
+ */
 export async function extractFilters(question: string): Promise<ExtractedFilters> {
   const defaultResponse: ExtractedFilters = {
     palavrasChave: [],
@@ -29,6 +39,8 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
     modalidade: null,
     dataInicial: null,
     dataFinal: null,
+    blacklist: [],       // Inicializa como array vazio
+    smartBlacklist: [], // Inicializa como array vazio
   };
 
   if (!question || typeof question !== 'string' || !question.trim()) {
@@ -40,6 +52,9 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   const hoje = new Date();
   const dataAtualFormatada = format(hoje, 'yyyy-MM-dd');
 
+  // --- PROMPT OTIMIZADO ---
+  // 1. Adicionada regra explícita para "últimos X dias".
+  // 2. Adicionadas regras para "blacklist" e "smartBlacklist".
   const prompt = `
 <MISSION>
 Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
@@ -89,7 +104,10 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
 </CONTEXT>
 
 <RULES>
-1.  **Mapeamento de Termos**: Identifique os ramos de atuação na pergunta do usuário. Popule 'palavrasChave' com os termos exatos da pergunta e os "Termos-chave" dos ramos correspondentes. Popule 'sinonimos' com os "Sinônimos" dos ramos. Se múltiplos ramos forem identificados, combine seus termos e sinônimos.
+1.  **Mapeamento de Termos**:
+    * Popule 'palavrasChave' com os termos exatos da pergunta e os "Termos-chave" dos ramos correspondentes.
+    * Popule 'sinonimos' com os "Sinônimos" dos ramos.
+    * Se múltiplos ramos forem identificados, combine seus termos e sinônimos.
 
 2.  **Extração de Datas**:
     * A data de hoje é ${dataAtualFormatada}. Use sempre o formato YYYY-MM-DD.
@@ -109,6 +127,10 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
 
 5.  **Extração de Modalidade**:
     * Identifique modalidades de licitação como "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso". Se não houver menção, retorne null.
+
+6.  **Filtros de Rejeição (Blacklist e Smart Blacklist)**:
+    * **Blacklist**: Extraia termos que o usuário explicitamente NÃO deseja ver nos resultados, geralmente indicados por frases como "excluindo", "exceto", "nada de", "sem". Estes termos devem ser adicionados ao array blacklist.
+    * **Smart Blacklist**: Extraia termos que, embora possam ser relacionados ao contexto geral da busca, o usuário deseja especificamente evitar. Por exemplo, se a busca é por "limpeza" e o usuário diz "sem insumos", "insumos" deve ir para a smartBlacklist. Isso permite uma filtragem mais contextual.
 </RULES>
 
 <OUTPUT_FORMAT>
@@ -122,7 +144,9 @@ Sua única saída deve ser um objeto JSON válido, aderindo estritamente à segu
   "estado": string | null,
   "modalidade": string | null,
   "dataInicial": string | null,
-  "dataFinal": string | null
+  "dataFinal": string | null,
+  "blacklist": ["string"],
+  "smartBlacklist": ["string"]
 }
 </OUTPUT_FORMAT>
 
@@ -130,7 +154,7 @@ Sua única saída deve ser um objeto JSON válido, aderindo estritamente à segu
 Analise a pergunta do usuário e siga as regras para gerar o JSON.
 
 **Exemplo 1 (Cenário: hoje é 2025-06-11)**
-Pergunta: "Pregão eletrônico para limpeza hospitalar e também merenda para escolas no estado de SP dos últimos 7 dias, acima de 1 milhão"
+Pergunta: "Pregão eletrônico para limpeza hospitalar e também merenda para escolas no estado de SP dos últimos 7 dias, acima de 1 milhão, exceto limpeza de fachadas e sem incluir qualquer tipo de material descartável"
 JSON de Saída:
 {
   "palavrasChave": ["pregão eletrônico", "limpeza hospitalar", "merenda escolar", "alimentação escolar"],
@@ -140,22 +164,43 @@ JSON de Saída:
   "estado": "SP",
   "modalidade": "Pregão Eletrônico",
   "dataInicial": "2025-06-04",
-  "dataFinal": "2025-06-11"
+  "dataFinal": "2025-06-11",
+  "blacklist": ["limpeza de fachadas"],
+  "smartBlacklist": ["material descartável"]
 }
 
 **Exemplo 2**
-Pergunta: "obras de engenharia no Rio de Janeiro"
+Pergunta: "obras de engenharia no Rio de Janeiro, mas nada de reformas"
 JSON de Saída:
 {
-  "palavrasChave": ["obras de engenharia", "construção civil", "reforma predial", "manutenção predial"],
+  "palavrasChave": ["obras de engenharia", "construção civil", "manutenção predial"],
   "sinonimos": [["edificações", "infraestrutura predial"]],
   "valorMin": null,
   "valorMax": null,
   "estado": "RJ",
   "modalidade": null,
   "dataInicial": null,
-  "dataFinal": null
+  "dataFinal": null,
+  "blacklist": ["reformas"],
+  "smartBlacklist": []
 }
+
+**Exemplo 3**
+Pergunta: "licitação para cogestão prisional, sem o termo 'apoio administrativo'"
+JSON de Saída:
+{
+  "palavrasChave": ["cogestão prisional"],
+  "sinonimos": [["parceria na gestão de presídios", "gestão de estabelecimentos penais", "apoio à gestão prisional"]],
+  "valorMin": null,
+  "valorMax": null,
+  "estado": null,
+  "modalidade": null,
+  "dataInicial": null,
+  "dataFinal": null,
+  "blacklist": [],
+  "smartBlacklist": ["apoio administrativo"]
+}
+
 </PROCESS_AND_EXAMPLES>
 
 ---
@@ -185,6 +230,10 @@ Pergunta do Usuário: "${question}"
     if (typeof parsedResponse.modalidade === 'string') validatedResponse.modalidade = parsedResponse.modalidade.trim();
     if (typeof parsedResponse.dataInicial === 'string') validatedResponse.dataInicial = parsedResponse.dataInicial;
     if (typeof parsedResponse.dataFinal === 'string') validatedResponse.dataFinal = parsedResponse.dataFinal;
+    // Process new blacklist and smartBlacklist fields
+    if (Array.isArray(parsedResponse.blacklist)) validatedResponse.blacklist = parsedResponse.blacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
+    if (Array.isArray(parsedResponse.smartBlacklist)) validatedResponse.smartBlacklist = parsedResponse.smartBlacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
+
 
     console.log("✅ Filtros extraídos e validados:", validatedResponse);
     return validatedResponse;
