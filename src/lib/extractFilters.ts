@@ -2,7 +2,6 @@
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import { format } from 'date-fns';
 
-// Garante que a chave seja verificada corretamente no nível do módulo
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
   throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
@@ -10,7 +9,6 @@ if (!process.env.GOOGLE_API_KEY) {
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-// Interface atualizada para incluir datas e novos filtros de rejeição
 export interface ExtractedFilters {
   palavrasChave: string[];
   sinonimos: string[][];
@@ -18,17 +16,20 @@ export interface ExtractedFilters {
   valorMax: number | null;
   estado: string | null;
   modalidade: string | null;
-  dataInicial: string | null; // Formato YYYY-MM-DD
-  dataFinal: string | null;   // Formato YYYY-MM-DD
-  blacklist: string[];      // Termos que NUNCA devem aparecer nos resultados
-  smartBlacklist: string[]; // Termos que devem ser excluídos se relacionados a palavrasChave, mas não explicitamente desejados
+  dataInicial: string | null;
+  dataFinal: string | null;
+  blacklist: string[];
+  smartBlacklist: string[];
 }
 
-/**
- * Extrai filtros estruturados de uma pergunta em linguagem natural usando a API Gemini.
- * @param question A pergunta do usuário sobre licitações.
- * @returns Uma promessa que resolve para um objeto ExtractedFilters.
- */
+
+const FIXED_GLOBAL_BLACKLIST = [
+  "teste",
+  "simulação",
+  "cancelado",
+  "leilão"
+];
+
 export async function extractFilters(question: string): Promise<ExtractedFilters> {
   const defaultResponse: ExtractedFilters = {
     palavrasChave: [],
@@ -39,8 +40,8 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
     modalidade: null,
     dataInicial: null,
     dataFinal: null,
-    blacklist: [],       // Inicializa como array vazio
-    smartBlacklist: [], // Inicializa como array vazio
+    blacklist: [],
+    smartBlacklist: [],
   };
 
   if (!question || typeof question !== 'string' || !question.trim()) {
@@ -53,8 +54,6 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   const dataAtualFormatada = format(hoje, 'yyyy-MM-dd');
 
   // --- PROMPT OTIMIZADO ---
-  // 1. Adicionada regra explícita para "últimos X dias".
-  // 2. Adicionadas regras para "blacklist" e "smartBlacklist".
   const prompt = `
 <MISSION>
 Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
@@ -101,6 +100,13 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
 9.  **Engenharia (Construção, Reforma, Manutenção):**
     * **Termos-chave**: "engenharia", "construção civil", "reforma predial", "manutenção predial", "obras".
     * **Sinônimos**: "serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva".
+
+**Modalidades de Licitação Conhecidas**: "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso".
+
+<GLOBAL_EXCLUSIONS>
+Os seguintes termos NUNCA devem aparecer em nenhuma licitação, independentemente da pergunta do usuário. Eles devem ser SEMPRE incluídos na 'blacklist' de saída:
+- ${FIXED_GLOBAL_BLACKLIST.map(term => `"${term}"`).join('\n- ')}
+</GLOBAL_EXCLUSIONS>
 </CONTEXT>
 
 <RULES>
@@ -126,11 +132,18 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
     * Identifique o estado brasileiro mencionado. Retorne a sigla em maiúsculas (ex: "São Paulo" -> "SP", "Rio" -> "RJ"). Se não houver menção, retorne null.
 
 5.  **Extração de Modalidade**:
-    * Identifique modalidades de licitação como "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso". Se não houver menção, retorne null.
+    * Identifique modalidades de licitação da lista "Modalidades de Licitação Conhecidas". Se não houver menção, retorne null.
 
 6.  **Filtros de Rejeição (Blacklist e Smart Blacklist)**:
-    * **Blacklist**: Extraia termos que o usuário explicitamente NÃO deseja ver nos resultados, geralmente indicados por frases como "excluindo", "exceto", "nada de", "sem". Estes termos devem ser adicionados ao array blacklist.
-    * **Smart Blacklist**: Extraia termos que, embora possam ser relacionados ao contexto geral da busca, o usuário deseja especificamente evitar. Por exemplo, se a busca é por "limpeza" e o usuário diz "sem insumos", "insumos" deve ir para a smartBlacklist. Isso permite uma filtragem mais contextual.
+    * **Blacklist**:
+        * Sempre inclua os termos de <GLOBAL_EXCLUSIONS> no array blacklist.
+        * Extraia termos que o usuário explicitamente NÃO deseja ver nos resultados (indicados por "excluindo", "exceto", "nada de", "sem"). Adicione-os ao array blacklist.
+        * Se um termo na blacklist for uma "Modalidade de Licitação Conhecida", ele também deve ser usado para filtrar modalidades no processamento posterior.
+    * **Smart Blacklist (Inferência Contextual)**:
+        * Se a pergunta do usuário focar **claramente em UM ÚNICO ramo de atuação** (identificado pelas 'palavrasChave' e 'sinonimos'), preencha smartBlacklist com os "Termos-chave" e "Sinônimos" dos **OUTROS ramos de atuação** que NÃO foram identificados na pergunta principal.
+        * Por exemplo, se a pergunta é "licitação de limpeza", e *apenas* o ramo "Limpeza" foi identificado nas 'palavrasChave', então termos de "Alimentação Prisional", "Frota com Motorista", etc., devem ser adicionados ao smartBlacklist.
+        * Esta inferência só deve ocorrer se a identificação do ramo principal for forte e singular.
+
 </RULES>
 
 <OUTPUT_FORMAT>
@@ -165,40 +178,40 @@ JSON de Saída:
   "modalidade": "Pregão Eletrônico",
   "dataInicial": "2025-06-04",
   "dataFinal": "2025-06-11",
-  "blacklist": ["limpeza de fachadas"],
-  "smartBlacklist": ["material descartável"]
+  "blacklist": ["teste", "simulação", "cancelado", "limpeza de fachadas"], // Inclui fixos e os extraídos
+  "smartBlacklist": [] // Smart Blacklist vazio pois múltiplos ramos (limpeza e merenda) foram identificados
 }
 
 **Exemplo 2**
 Pergunta: "obras de engenharia no Rio de Janeiro, mas nada de reformas"
 JSON de Saída:
 {
-  "palavrasChave": ["obras de engenharia", "construção civil", "manutenção predial"],
-  "sinonimos": [["edificações", "infraestrutura predial"]],
+  "palavrasChave": ["obras de engenharia", "construção civil", "reforma predial", "manutenção predial"],
+  "sinonimos": [["serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva"]],
   "valorMin": null,
   "valorMax": null,
   "estado": "RJ",
   "modalidade": null,
   "dataInicial": null,
   "dataFinal": null,
-  "blacklist": ["reformas"],
-  "smartBlacklist": []
+  "blacklist": ["teste", "simulação", "cancelado", "reformas"], // Inclui fixos e os extraídos
+  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
 }
 
 **Exemplo 3**
-Pergunta: "licitação para cogestão prisional, sem o termo 'apoio administrativo'"
+Pergunta: "Traga licitações de limpeza de São Paulo, exceto leilão"
 JSON de Saída:
 {
-  "palavrasChave": ["cogestão prisional"],
-  "sinonimos": [["parceria na gestão de presídios", "gestão de estabelecimentos penais", "apoio à gestão prisional"]],
+  "palavrasChave": ["limpeza predial", "limpeza escolar", "limpeza hospitalar"],
+  "sinonimos": [["conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso"], ["higienização de escolas", "conservação de ambiente escolar"], ["higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde"]],
   "valorMin": null,
   "valorMax": null,
-  "estado": null,
+  "estado": "SP",
   "modalidade": null,
   "dataInicial": null,
   "dataFinal": null,
-  "blacklist": [],
-  "smartBlacklist": ["apoio administrativo"]
+  "blacklist": ["teste", "simulação", "cancelado", "leilão"], // Inclui fixos e os extraídos
+  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
 }
 
 </PROCESS_AND_EXAMPLES>
@@ -230,8 +243,12 @@ Pergunta do Usuário: "${question}"
     if (typeof parsedResponse.modalidade === 'string') validatedResponse.modalidade = parsedResponse.modalidade.trim();
     if (typeof parsedResponse.dataInicial === 'string') validatedResponse.dataInicial = parsedResponse.dataInicial;
     if (typeof parsedResponse.dataFinal === 'string') validatedResponse.dataFinal = parsedResponse.dataFinal;
+
     // Process new blacklist and smartBlacklist fields
-    if (Array.isArray(parsedResponse.blacklist)) validatedResponse.blacklist = parsedResponse.blacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
+    const explicitBlacklist = Array.isArray(parsedResponse.blacklist) ? parsedResponse.blacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase()) : [];
+    // Combina a blacklist explícita com a blacklist fixa global, removendo duplicatas
+    validatedResponse.blacklist = [...new Set([...FIXED_GLOBAL_BLACKLIST.map(term => term.toLowerCase()), ...explicitBlacklist])];
+
     if (Array.isArray(parsedResponse.smartBlacklist)) validatedResponse.smartBlacklist = parsedResponse.smartBlacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
 
 

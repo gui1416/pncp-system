@@ -62,28 +62,32 @@ export async function POST(req: NextRequest) {
 
     const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => {
       const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || '';
+      const modalidadeLicitacao = licitacao.modalidadeNome?.toLowerCase() || '';
 
-      // Positive filtering (what we want to see)
-      const objetoOk = searchTerms.length === 0 || searchTerms.some(term => objetoLicitacao.includes(term));
-      if (!objetoOk) return false;
+      const objetoOk = searchTerms.length === 0 || searchTerms.some(searchTerm => {
+        const searchTermWords = searchTerm.split(' ').filter(word => word.length > 0);
+        if (searchTermWords.length > 1) {
+          return searchTermWords.every(word => objetoLicitacao.includes(word));
+        }
+        return objetoLicitacao.includes(searchTerm);
+      });
 
-      // Blacklist filtering (explicitly exclude these terms)
-      const isBlacklisted = blacklist.some(term => objetoLicitacao.includes(term));
-      if (isBlacklisted) {
-        console.log(`🚫 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na blacklist: "${objetoLicitacao}" contém [${blacklist.filter(t => objetoLicitacao.includes(t)).join(', ')}]`);
+      if (!objetoOk) {
         return false;
       }
 
-      // Smart Blacklist filtering (exclude if a smart blacklist term is present AND no positive keyword is explicitly present for that term)
+      const isBlacklisted = blacklist.some(term => objetoLicitacao.includes(term) || modalidadeLicitacao.includes(term));
+      if (isBlacklisted) {
+        console.log(`🚫 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na blacklist: "${objetoLicitacao}" ou modalidade "${modalidadeLicitacao}" contém [${blacklist.filter(t => objetoLicitacao.includes(t) || modalidadeLicitacao.includes(t)).join(', ')}]`);
+        return false;
+      }
+
       const isSmartBlacklisted = smartBlacklist.some(sbt => {
-        // If the smart blacklist term is present in the object
         if (objetoLicitacao.includes(sbt)) {
-          // Check if any of the positive search terms (keywords or synonyms) are also present.
-          // If no positive search term is present, then this smart blacklist term is relevant for exclusion.
-          const isPositiveTermPresent = searchTerms.some(term => objetoLicitacao.includes(term));
-          if (!isPositiveTermPresent) {
-            console.log(`🧠 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na smart blacklist sem termos positivos: "${objetoLicitacao}" contém "${sbt}"`);
-            return true; // Exclude this item
+          const isCoreKeywordPresent = palavrasChave.some(coreKw => objetoLicitacao.includes(coreKw.toLowerCase()));
+          if (!isCoreKeywordPresent) {
+            console.log(`🧠 Excluindo licitação ${licitacao.numeroControlePNCP} devido a termo na smart blacklist sem palavras-chave principais: "${objetoLicitacao}" contém "${sbt}"`);
+            return true;
           }
         }
         return false;
@@ -91,8 +95,6 @@ export async function POST(req: NextRequest) {
 
       if (isSmartBlacklisted) return false;
 
-
-      // Value filtering
       const valorParaComparar = licitacao.valorTotalEstimado ?? 0;
       const valorMinOk = (valorMin === null || valorParaComparar >= valorMin);
       const valorMaxOk = (valorMax === null || valorParaComparar <= valorMax);
