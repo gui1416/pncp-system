@@ -89,9 +89,11 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
     * **Sinônimos**: "facilities", "apoio administrativo", "recepcionista", "porteiro", "copeiragem", "serviços gerais".
 
 7.  **Limpeza (Predial, Escolar e Hospitalar):**
-    * **Limpeza Predial**: "limpeza predial", "conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso".
-    * **Limpeza Escolar**: "limpeza escolar", "higienização de escolas", "conservação de ambiente escolar".
-    * **Limpeza Hospitalar**: "limpeza hospitalar", "higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde".
+    * **Termos-chave**: "limpeza predial", "limpeza escolar", "limpeza hospitalar", "limpeza".
+    * **Sinônimos**: "limpeza e conservação", "higienização", "serviços de limpeza",
+        "Limpeza Predial": "conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso".
+        "Limpeza Escolar": "higienização de escolas", "conservação de ambiente escolar".
+        "Limpeza Hospitalar": "higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde".
 
 8.  **PPP e Concessões:**
     * **Termos-chave**: "ppp", "parceria público-privada", "concessão administrativa", "concessão patrocinada", "ppi", "pmi".
