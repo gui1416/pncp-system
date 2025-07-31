@@ -126,7 +126,6 @@ const FIXED_GLOBAL_BLACKLIST = [
   "decoração natalina",
   "pavimentação",
   "botoeiras",
-  ""
 ];
 
 export async function extractFilters(question: string): Promise<ExtractedFilters> {
