@@ -63,6 +63,15 @@ export async function POST(req: NextRequest) {
     const licitacoesFiltradas = licitacoesEncontradas.filter(licitacao => {
       const objetoLicitacao = licitacao.objetoCompra?.toLowerCase() || '';
       const modalidadeLicitacao = licitacao.modalidadeNome?.toLowerCase() || '';
+      const ufLicitacao = licitacao.unidadeOrgao?.ufSigla?.toUpperCase() || '';
+
+      const palavrasFiltro = ['obra', 'construção', 'engenharia', 'reforma'];
+
+      const contemPalavraFiltro = palavrasFiltro.some(palavra => objetoLicitacao.includes(palavra));
+
+      if (contemPalavraFiltro && ufLicitacao !== 'SP') {
+        return false;
+      }
 
       const objetoOk = searchTerms.length === 0 || searchTerms.some(searchTerm => {
         const searchTermWords = searchTerm.split(' ').filter(word => word.length > 0);
