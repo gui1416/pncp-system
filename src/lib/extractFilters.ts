@@ -1,10 +1,9 @@
-// src/lib/extractFilters.ts
-import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
+import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerativeModel, GenerateContentResult } from '@google/generative-ai';
 import { format } from 'date-fns';
 
 if (!process.env.GOOGLE_API_KEY) {
-  console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
-  throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
+  console.error("❌ FATAL: GEMINI_API_KEY não está definida nas variáveis de ambiente.");
+  throw new Error('GEMINI_API_KEY não está definida nas variáveis de ambiente');
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
@@ -22,113 +21,34 @@ export interface ExtractedFilters {
   smartBlacklist: string[];
 }
 
+// ATUALIZAÇÃO: A função agora usa os tipos corretos do SDK do Google.
+async function generateContentWithRetry(model: GenerativeModel, prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result;
+    } catch (error) {
+      if (error instanceof GoogleGenerativeAIError && error.message.includes('503')) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          console.error(`❌ Falha na chamada ao Gemini após ${maxRetries} tentativas. Último erro:`, error);
+          throw new Error(`O serviço de IA está temporariamente sobrecarregado. Por favor, tente novamente em alguns instantes. (Error: 503)`);
+        }
+        const delay = Math.pow(2, attempt) * 1000;
+        console.warn(`⚠️ Serviço do Gemini sobrecarregado (503). Tentando novamente em ${delay / 1000}s... (Tentativa ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+  // Este ponto só é alcançado se todas as tentativas falharem
+  throw new Error('Falha ao gerar conteúdo após múltiplas tentativas.');
+}
 
-const FIXED_GLOBAL_BLACKLIST = [
-  "teste",
-  "simulação",
-  "cancelado",
-  "leilão",
-  "dedetização",
-  "controle de pragas",
-  "poços artesianos",
-  "desratização",
-  "pombo",
-  "ratos",
-  "controle de pragas urbanas",
-  "descupinização",
-  "banheiro químico",
-  "desentupimento de canos e ralos",
-  "buffet",
-  "coração",
-  "organização de espaços",
-  "salgados fritos e assados",
-  "bolos",
-  "brinquedos",
-  "infláveis",
-  "pula pula",
-  "máquina algodão doce",
-  "pipoca",
-  "sessão solene",
-  "homenagem",
-  "fornecimento de pão",
-  "confeitaria",
-  "padaria",
-  "doces",
-  "ocupação de espaço físico",
-  "picolé",
-  "algodão doce",
-  "coquetel",
-  "panificação",
-  "ações institucionais",
-  "sociais",
-  "reuniões",
-  "eventos",
-  "biscoitos",
-  "praça de alimentação",
-  "agricultores familiares",
-  "familiares rurais",
-  "festa",
-  "hotelaria",
-  "feiras livres",
-  "camarim",
-  "sem motorista",
-  "sem condutor",
-  "ônibus e micro-ônibus",
-  "caminhão",
-  "máquinas",
-  "veículos pesados",
-  "unidades habitações",
-  "audiovisual",
-  "imagens",
-  "locução",
-  "panfletos",
-  "produção de cards",
-  "outdoor",
-  "cartazes",
-  "trabalho social",
-  "sem fins lucrativos",
-  "vagas de estágio remunerado",
-  "curso",
-  "armamento",
-  "pistolas",
-  "musica",
-  "multi-instrumentista",
-  "sociedade civil",
-  "leilões",
-  "alienação de bens",
-  "leiloeiros",
-  "lavagem automotiva",
-  "samba",
-  "pagode",
-  "rock",
-  "sertanejo",
-  "lavagem dos veiculos",
-  "teatro",
-  "móveis",
-  "imóveis",
-  "ginástica",
-  "musculação",
-  "dança",
-  "imprensa",
-  "segurança privada",
-  "desfile",
-  "albergagem",
-  "veterinária",
-  "usina",
-  "professor",
-  "recreativos",
-  "arbitragem",
-  "assesoria",
-  "consultoria",
-  "cerimonialista",
-  "campeonatos",
-  "recapeamento",
-  "decoração natalina",
-  "pavimentação",
-  "botoeiras",
-];
 
-export async function extractFilters(question: string): Promise<ExtractedFilters> {
+export async function extractFilters(question: string, userBlacklist: string[] = []): Promise<ExtractedFilters> {
   const defaultResponse: ExtractedFilters = {
     palavrasChave: [],
     sinonimos: [],
@@ -138,12 +58,14 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
     modalidade: null,
     dataInicial: null,
     dataFinal: null,
-    blacklist: [],
+    blacklist: userBlacklist,
     smartBlacklist: [],
   };
 
   if (!question || typeof question !== 'string' || !question.trim()) {
-    console.warn("⚠️ extractFilters chamada com pergunta inválida.");
+    console.warn("⚠️ extractFilters chamada com pergunta inválida. Retornando resposta padrão.");
+    // Retorna a blacklist do usuário mesmo em caso de pergunta inválida
+    defaultResponse.blacklist = userBlacklist;
     return defaultResponse;
   }
   console.log(`🧠 Chamando Gemini para extrair filtros de: "${question}"`);
@@ -151,16 +73,15 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   const hoje = new Date();
   const dataAtualFormatada = format(hoje, 'yyyy-MM-dd');
 
-  // --- PROMPT OTIMIZADO ---
   const prompt = `
 <MISSION>
-Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
+Você é um assistente de IA altamente especializado em licitações públicas no Brasil. Sua função é converter a pergunta do usuário em um objeto JSON estrito, sem qualquer texto adicional.
 </MISSION>
 
 <CONTEXT>
 A data de referência (hoje) é: ${dataAtualFormatada}.
 
-A seguir estão os ramos de atuação da empresa. Use esta lista como sua base de conhecimento principal para mapear os termos da pergunta do usuário.
+Use esta lista de ramos de atuação como base de conhecimento para mapear os termos da pergunta do usuário:
 
 1.  **Alimentação Prisional:**
     * **Termos-chave**: "alimentação prisional", "refeições para presídios", "fornecimento de alimentação para unidades prisionais", "nutrição prisional".
@@ -201,54 +122,21 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
     * **Termos-chave**: "engenharia", "construção civil", "reforma predial", "manutenção predial", "obras".
     * **Sinônimos**: "serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva".
 
-**Modalidades de Licitação Conhecidas**: "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso".
-
-<GLOBAL_EXCLUSIONS>
-Os seguintes termos NUNCA devem aparecer em nenhuma licitação, independentemente da pergunta do usuário. Eles devem ser SEMPRE incluídos na 'blacklist' de saída:
-- ${FIXED_GLOBAL_BLACKLIST.map(term => `"${term}"`).join('\n- ')}
-</GLOBAL_EXCLUSIONS>
+**Modalidades de Licitação Conhecidas**: "Leilão Eletrônico", "Leilão Presencial", "Diálogo Competitivo", "Concurso", "Concorrência Eletrônica", "Concorrência Presencial", "Pregão Eletrônico", "Pregão Presencial", "Dispensa de Licitação", "Inexigibilidade de Licitação", "Manifestação de Interesse", "Pré-qualificação", "Credenciamento".
 </CONTEXT>
 
 <RULES>
-1.  **Mapeamento de Termos**:
-    * Popule 'palavrasChave' com os termos exatos da pergunta e os "Termos-chave" dos ramos correspondentes.
-    * Popule 'sinonimos' com os "Sinônimos" dos ramos.
-    * Se múltiplos ramos forem identificados, combine seus termos e sinônimos.
-
-2.  **Extração de Datas**:
-    * A data de hoje é ${dataAtualFormatada}. Use sempre o formato YYYY-MM-DD.
-    * "últimos X dias": dataFinal é hoje, dataInicial é hoje - X dias.
-    * "hoje": dataInicial e dataFinal são ${dataAtualFormatada}.
-    * Se um período explícito for dado (ex: "de 01/07/2025 a 15/07/2025"), use-o.
-    * Se nenhum período for mencionado, 'dataInicial' e 'dataFinal' devem ser null.
-
-3.  **Extração de Valores**:
-    * Interprete valores como "1 milhão" (1000000), "500 mil" (500000).
-    * "acima de X" ou "a partir de X": preencha 'valorMin'.
-    * "abaixo de X" ou "até X": preencha 'valorMax'.
-    * "entre X e Y": preencha 'valorMin' e 'valorMax'.
-
-4.  **Extração de Estado**:
-    * Identifique o estado brasileiro mencionado. Retorne a sigla em maiúsculas (ex: "São Paulo" -> "SP", "Rio" -> "RJ"). Se não houver menção, retorne null.
-
-5.  **Extração de Modalidade**:
-    * Identifique modalidades de licitação da lista "Modalidades de Licitação Conhecidas". Se não houver menção, retorne null.
-
-6.  **Filtros de Rejeição (Blacklist e Smart Blacklist)**:
-    * **Blacklist**:
-        * Sempre inclua os termos de <GLOBAL_EXCLUSIONS> no array blacklist.
-        * Extraia termos que o usuário explicitamente NÃO deseja ver nos resultados (indicados por "excluindo", "exceto", "nada de", "sem"). Adicione-os ao array blacklist.
-        * Se um termo na blacklist for uma "Modalidade de Licitação Conhecida", ele também deve ser usado para filtrar modalidades no processamento posterior.
-    * **Smart Blacklist (Inferência Contextual)**:
-        * Se a pergunta do usuário focar **claramente em UM ÚNICO ramo de atuação** (identificado pelas 'palavrasChave' e 'sinonimos'), preencha smartBlacklist com os "Termos-chave" e "Sinônimos" dos **OUTROS ramos de atuação** que NÃO foram identificados na pergunta principal.
-        * Por exemplo, se a pergunta é "licitação de limpeza", e *apenas* o ramo "Limpeza" foi identificado nas 'palavrasChave', então termos de "Alimentação Prisional", "Frota com Motorista", etc., devem ser adicionados ao smartBlacklist.
-        * Esta inferência só deve ocorrer se a identificação do ramo principal for forte e singular.
-
+1.  **Mapeamento de Termos**: Se a pergunta do usuário corresponder a um ou mais ramos de atuação, popule 'palavrasChave' com os "Termos-chave" e 'sinonimos' com os "Sinônimos" dos ramos correspondentes.
+2.  **Datas**: Hoje é ${dataAtualFormatada}. Use o formato YYYY-MM-DD. Se nenhum período for mencionado, 'dataInicial' e 'dataFinal' devem ser null.
+3.  **Valores**: Interprete "1 milhão" como 1000000. "acima de X" é 'valorMin', "abaixo de X" é 'valorMax'.
+4.  **Estado**: Retorne a sigla em maiúsculas (ex: "São Paulo" -> "SP").
+5.  **Modalidade**: Identifique a modalidade da lista "Modalidades de Licitação Conhecidas".
+6.  **Blacklist**: Extraia termos que o usuário explicitamente NÃO deseja ver (indicados por "excluindo", "exceto", "nada de", "sem"). Popule o array 'blacklist' com esses termos. Não adicione nenhum outro termo a este array.
+7.  **Smart Blacklist**: Se a pergunta focar **claramente em UM ÚNICO ramo de atuação**, preencha smartBlacklist com os "Termos-chave" e "Sinônimos" dos **OUTROS** ramos. Caso contrário, deixe o array vazio.
 </RULES>
 
 <OUTPUT_FORMAT>
-Sua única saída deve ser um objeto JSON válido, aderindo estritamente à seguinte estrutura. Não inclua texto ou markdown antes ou depois do JSON.
-
+Sua única saída deve ser um objeto JSON válido, aderindo à seguinte estrutura:
 {
   "palavrasChave": ["string"],
   "sinonimos": [["string"]],
@@ -262,74 +150,21 @@ Sua única saída deve ser um objeto JSON válido, aderindo estritamente à segu
   "smartBlacklist": ["string"]
 }
 </OUTPUT_FORMAT>
-
-<PROCESS_AND_EXAMPLES>
-Analise a pergunta do usuário e siga as regras para gerar o JSON.
-
-**Exemplo 1 (Cenário: hoje é 2025-06-11)**
-Pergunta: "Pregão eletrônico para limpeza hospitalar e também merenda para escolas no estado de SP dos últimos 7 dias, acima de 1 milhão, exceto limpeza de fachadas e sem incluir qualquer tipo de material descartável"
-JSON de Saída:
-{
-  "palavrasChave": ["pregão eletrônico", "limpeza hospitalar", "merenda escolar", "alimentação escolar"],
-  "sinonimos": [["higienização hospitalar", "desinfecção hospitalar"], ["fornecimento de merenda", "pnae"]],
-  "valorMin": 1000000,
-  "valorMax": null,
-  "estado": "SP",
-  "modalidade": "Pregão Eletrônico",
-  "dataInicial": "2025-06-04",
-  "dataFinal": "2025-06-11",
-  "blacklist": ["teste", "simulação", "cancelado", "limpeza de fachadas"], // Inclui fixos e os extraídos
-  "smartBlacklist": [] // Smart Blacklist vazio pois múltiplos ramos (limpeza e merenda) foram identificados
-}
-
-**Exemplo 2**
-Pergunta: "obras de engenharia no Rio de Janeiro, mas nada de reformas"
-JSON de Saída:
-{
-  "palavrasChave": ["obras de engenharia", "construção civil", "reforma predial", "manutenção predial"],
-  "sinonimos": [["serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva"]],
-  "valorMin": null,
-  "valorMax": null,
-  "estado": "RJ",
-  "modalidade": null,
-  "dataInicial": null,
-  "dataFinal": null,
-  "blacklist": ["teste", "simulação", "cancelado", "reformas"], // Inclui fixos e os extraídos
-  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
-}
-
-**Exemplo 3**
-Pergunta: "Traga licitações de limpeza de São Paulo, exceto leilão"
-JSON de Saída:
-{
-  "palavrasChave": ["limpeza predial", "limpeza escolar", "limpeza hospitalar"],
-  "sinonimos": [["conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso"], ["higienização de escolas", "conservação de ambiente escolar"], ["higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde"]],
-  "valorMin": null,
-  "valorMax": null,
-  "estado": "SP",
-  "modalidade": null,
-  "dataInicial": null,
-  "dataFinal": null,
-  "blacklist": ["teste", "simulação", "cancelado", "leilão"], // Inclui fixos e os extraídos
-  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
-}
-
-</PROCESS_AND_EXAMPLES>
-
 ---
 Agora, analise a pergunta abaixo e retorne APENAS o objeto JSON correspondente.
 Pergunta do Usuário: "${question}"
 `;
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
+    const result = await generateContentWithRetry(model, prompt);
+
     const response = await result.response;
     const text = response.text();
 
     if (!text) throw new Error('Falha ao extrair filtros: resposta da IA vazia');
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Resposta da IA não parece conter um objeto JSON válido.');
+    if (!jsonMatch) throw new Error('Resposta da IA não contém um objeto JSON válido.');
 
     const jsonText = jsonMatch[0];
     const parsedResponse = JSON.parse(jsonText) as Partial<ExtractedFilters>;
@@ -344,22 +179,19 @@ Pergunta do Usuário: "${question}"
     if (typeof parsedResponse.dataInicial === 'string') validatedResponse.dataInicial = parsedResponse.dataInicial;
     if (typeof parsedResponse.dataFinal === 'string') validatedResponse.dataFinal = parsedResponse.dataFinal;
 
-    // Process new blacklist and smartBlacklist fields
     const explicitBlacklist = Array.isArray(parsedResponse.blacklist) ? parsedResponse.blacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase()) : [];
-    // Combina a blacklist explícita com a blacklist fixa global, removendo duplicatas
-    validatedResponse.blacklist = [...new Set([...FIXED_GLOBAL_BLACKLIST.map(term => term.toLowerCase()), ...explicitBlacklist])];
+    validatedResponse.blacklist = [...new Set([...userBlacklist.map(term => term.toLowerCase()), ...explicitBlacklist])];
 
     if (Array.isArray(parsedResponse.smartBlacklist)) validatedResponse.smartBlacklist = parsedResponse.smartBlacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
-
 
     console.log("✅ Filtros extraídos e validados:", validatedResponse);
     return validatedResponse;
 
   } catch (error: unknown) {
     console.error('❌ Erro em extractFilters:', error);
-    if (error instanceof GoogleGenerativeAIError) {
+    if (error instanceof Error) {
       throw new Error(`Falha na comunicação com a IA Gemini: ${error.message}`);
     }
-    throw error;
+    throw new Error("Ocorreu um erro desconhecido durante a extração de filtros.");
   }
 }
