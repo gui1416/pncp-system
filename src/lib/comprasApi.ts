@@ -1,6 +1,5 @@
-// src/lib/comprasApi.ts
 import axios, { AxiosError } from 'axios';
-import { ApiResponse, ComprasLicitacao, VwFtContrato, PncpContratosApiResponse } from './types'; // 'ContratosApiResponse' e 'PncpContrato' removidos ou já estavam ok
+import { ApiResponse, ComprasLicitacao, VwFtContrato, PncpLicitacao, PncpApiResponse } from './types';
 import { ExtractedFilters } from './extractFilters';
 import { format } from 'date-fns';
 
@@ -86,50 +85,92 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
  return modalidadesMap[normalizedName];
 }
 
-export async function buscarContratosPNCP(
+const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+
+export async function buscarLicitacoesPNCP(
  filters: ExtractedFilters,
  page = 1,
- perPage = 500
-): Promise<ApiResponse<PncpContratosApiResponse>> {
+ perPage = 50
+): Promise<ApiResponse<PncpApiResponse<PncpLicitacao>>> {
  try {
-  console.log(`📞 Chamando buscarContratosPNCP com filtros:`, filters);
+  console.log(`📞 Chamando buscarLicitacoesPNCP com filtros:`, filters);
 
-  const params: Record<string, unknown> = { // Alterado de 'any' para 'unknown'
+  const baseParams: Record<string, unknown> = {
    pagina: page,
    tamanhoPagina: perPage,
   };
 
   if (!filters.dataInicial || !filters.dataFinal) {
-   return { success: false, error: "As datas inicial e final são obrigatórias para esta busca de contratos.", status: 400 };
+   const today = new Date();
+   baseParams.dataInicial = format(today, 'yyyyMMdd');
+   baseParams.dataFinal = format(today, 'yyyyMMdd');
+   console.warn("⚠️ Data inicial ou final ausentes para buscar licitações. Usando a data de hoje como período padrão.");
+  } else {
+   baseParams.dataInicial = format(new Date(filters.dataInicial), 'yyyyMMdd');
+   baseParams.dataFinal = format(new Date(filters.dataFinal), 'yyyyMMdd');
   }
-  params.dataInicial = format(new Date(filters.dataInicial), 'yyyyMMdd');
-  params.dataFinal = format(new Date(filters.dataFinal), 'yyyyMMdd');
 
   if (filters.estado) {
-   params.uf = filters.estado;
+   baseParams.uf = filters.estado;
   }
+
+  const endpoint = '/v1/contratacoes/publicacao';
+  let allLicitacoes: PncpLicitacao[] = [];
+  let totalCombinedRecords = 0;
+
   if (filters.modalidade) {
    const codigoModalidade = getPncpModalidadeCodigo(filters.modalidade);
    if (codigoModalidade !== undefined) {
-    params.codigoModalidadeContratacao = codigoModalidade;
+    const params = { ...baseParams, codigoModalidadeContratacao: codigoModalidade };
+    const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
+
+    if (response.data && Array.isArray(response.data.data)) {
+     allLicitacoes = response.data.data;
+     totalCombinedRecords = response.data.totalRegistros;
+    } else {
+     console.error("❌ Estrutura inesperada na resposta da API PNCP (Licitações - Modalidade Específica):", response.data);
+     return { success: false, error: "Resposta da API PNCP inválida (estrutura inesperada).", status: 500 };
+    }
    } else {
-    console.warn(`⚠️ Modalidade "${filters.modalidade}" não mapeada para um código do PNCP. Ignorando filtro de modalidade.`);
+    console.warn(`⚠️ Modalidade "${filters.modalidade}" não mapeada para um código do PNCP. Nenhuma busca será realizada para a modalidade.`);
+    return { success: true, data: { data: [], totalRegistros: 0, totalPaginas: 1, numeroPagina: 1, paginasRestantes: 0, empty: true }, status: 200 };
+   }
+  } else { // Se nenhuma modalidade foi especificada, busca em todas
+   console.log("ℹ️ Nenhuma modalidade especificada. Buscando em todas as modalidades disponíveis.");
+   for (const modalidadeCode of ALL_MODALITY_CODES) {
+    const params = { ...baseParams, codigoModalidadeContratacao: modalidadeCode };
+    try {
+     const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
+     if (response.data && Array.isArray(response.data.data)) {
+      allLicitacoes = allLicitacoes.concat(response.data.data);
+      totalCombinedRecords += response.data.totalRegistros;
+     } else {
+      console.warn(`⚠️ Resposta inesperada para modalidade ${modalidadeCode}. Prosseguindo...`, response.data);
+     }
+    } catch (err: unknown) {
+     const errorResponse = handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}`);
+     console.warn(`⚠️ Erro ao buscar modalidade ${modalidadeCode}. Prosseguindo...`, errorResponse.error);
+    }
    }
   }
 
-  const endpoint = '/v1/contratos';
+  console.log(`✅ Sucesso ao buscar licitações (editais e avisos) do PNCP. Total de registros combinados: ${totalCombinedRecords}`);
 
-  const response = await pncpApi.get<PncpContratosApiResponse>(endpoint, { params });
-  console.log(`✅ Sucesso ao buscar contratos do PNCP.`);
+  return {
+   success: true,
+   data: {
+    data: allLicitacoes,
+    totalRegistros: totalCombinedRecords,
+    totalPaginas: 1,
+    numeroPagina: 1,
+    paginasRestantes: 0,
+    empty: allLicitacoes.length === 0,
+   },
+   status: 200
+  };
 
-  if (!response.data || !Array.isArray(response.data.data)) {
-   console.error("❌ Estrutura inesperada na resposta da API PNCP (Contratos):", response.data);
-   return { success: false, error: "Resposta da API PNCP inválida (estrutura inesperada).", status: 500 };
-  }
-
-  return { success: true, data: response.data, status: response.status };
  } catch (err: unknown) {
-  return handleApiError(err, 'Erro ao buscar contratos na API PNCP');
+  return handleApiError(err, 'Erro geral ao buscar licitações na API PNCP');
  }
 }
 
@@ -145,7 +186,6 @@ export async function getDetalhesLicitacao(boletimId: number): Promise<ApiRespon
   }
   return { success: true, data: responseData, status: response.status };
  } catch (err: unknown) {
-
   return handleApiError(err, `Erro ao buscar detalhes do boletim ${boletimId}`);
  }
 }

@@ -1,9 +1,7 @@
-// src/app/api/contratos-id/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getDetalhesContrato } from '@/lib/comprasApi';
 
 export async function GET(request: NextRequest) {
- // Extrai o idContrato da URL
  const url = request.nextUrl;
  const idContrato = url.pathname.split('/').pop();
 
