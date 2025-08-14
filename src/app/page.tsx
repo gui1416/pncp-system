@@ -1,23 +1,42 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Toaster, toast } from "sonner"
 import { type PncpLicitacao as Licitacao } from "@/lib/types"
 
-
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
+const ITEMS_PER_PAGE = 100;
 
 export default function Home() {
   const [question, setQuestion] = useState("")
   const [resultados, setResultados] = useState<Licitacao[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [lastSearchQuestion, setLastSearchQuestion] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const { paginatedResults, totalPages } = useMemo(() => {
+    const total = Math.ceil(resultados.length / ITEMS_PER_PAGE);
+    const paginated = resultados.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+    return { paginatedResults: paginated, totalPages: total };
+  }, [resultados, currentPage]);
 
   const handleBuscar = async () => {
     const trimmedQuestion = question.trim();
@@ -28,6 +47,7 @@ export default function Home() {
 
     setIsLoading(true);
     setResultados([]);
+    setCurrentPage(1);
     setLastSearchQuestion(trimmedQuestion);
 
     try {
@@ -66,11 +86,39 @@ export default function Home() {
 
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
     const status = s?.toUpperCase() || '';
-    // Based on ManualPNCPAPIConsultasVerso1.0.pdf, Section 5.5. Situação da Contratação
-    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive"; // Corresponds to códigos 2, 3, 4
-    if (["DIVULGADA NO PNCP"].includes(status)) return "default"; // Corresponds to código 1
+    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
+    if (["DIVULGADA NO PNCP"].includes(status)) return "default";
     return "secondary";
   };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo(0, 0); // Opcional: rola para o topo ao mudar de página
+  };
+
+  const paginationItems = useMemo(() => {
+    const items = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      items.push(1);
+      if (currentPage > 3) {
+        items.push('...');
+      }
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) {
+        items.push(i);
+      }
+      if (currentPage < totalPages - 2) {
+        items.push('...');
+      }
+      items.push(totalPages);
+    }
+    return items;
+  }, [currentPage, totalPages]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -115,7 +163,7 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-6">
-                {resultados.map((licitacao) => (
+                {paginatedResults.map((licitacao) => (
                   <li key={licitacao.numeroControlePNCP} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
                       <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4>
@@ -133,7 +181,6 @@ export default function Home() {
                           </Badge>
                         )}
                         <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize">{licitacao.situacaoCompraNome?.toLowerCase() ?? 'n/a'}</Badge>
-
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 mb-4">
@@ -164,6 +211,43 @@ export default function Home() {
                 ))}
               </ul>
             </CardContent>
+            {totalPages > 1 && (
+              <CardFooter>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined}
+                      />
+                    </PaginationItem>
+                    {paginationItems.map((item, index) => (
+                      <PaginationItem key={index}>
+                        {typeof item === 'number' ? (
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); handlePageChange(item); }}
+                            isActive={currentPage === item}
+                          >
+                            {item}
+                          </PaginationLink>
+                        ) : (
+                          <PaginationEllipsis />
+                        )}
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </CardFooter>
+            )}
           </Card>
         ) : (
           !isLoading && lastSearchQuestion && (
