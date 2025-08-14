@@ -32,17 +32,35 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
 
-  // Filtra os resultados locais com base no input de pesquisa
+  // --- Funções de formatação ---
+  const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
+  const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
+  const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
+    const status = s?.toUpperCase() || '';
+    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
+    if (["DIVULGADA NO PNCP"].includes(status)) return "default";
+    return "secondary";
+  };
+
+
+  // MODIFICAÇÃO: A lógica de filtragem agora inclui mais campos.
   const filteredResults = useMemo(() => {
-    let results = allResults;
-    if (!searchTerm) return results;
+    if (!searchTerm.trim()) return allResults;
 
     const lowercasedTerm = searchTerm.toLowerCase();
-    return results.filter(licitacao =>
-      licitacao.objetoCompra?.toLowerCase().includes(lowercasedTerm) ||
-      licitacao.orgaoEntidade?.razaoSocial?.toLowerCase().includes(lowercasedTerm) ||
-      licitacao.unidadeOrgao?.municipioNome?.toLowerCase().includes(lowercasedTerm)
-    );
+
+    return allResults.filter(licitacao => {
+      const local = `${licitacao.unidadeOrgao?.municipioNome ?? ''} / ${licitacao.unidadeOrgao?.ufSigla ?? ''}`;
+
+      return (
+        licitacao.objetoCompra?.toLowerCase().includes(lowercasedTerm) ||
+        licitacao.orgaoEntidade?.razaoSocial?.toLowerCase().includes(lowercasedTerm) ||
+        local.toLowerCase().includes(lowercasedTerm) ||
+        formatGenericDateTime(licitacao.dataPublicacaoPncp).toLowerCase().includes(lowercasedTerm) ||
+        (licitacao.modalidadeNome?.toLowerCase().includes(lowercasedTerm)) ||
+        formatCurrency(licitacao.valorTotalEstimado).toLowerCase().includes(lowercasedTerm)
+      );
+    });
   }, [allResults, searchTerm]);
 
   const { paginatedResults, totalPages } = useMemo(() => {
@@ -61,8 +79,8 @@ export default function Home() {
     setAllResults([]);
     setCurrentPage(1);
     setHasSearched(true);
+    setSearchTerm(""); // Limpa a busca local ao aplicar novos filtros
 
-    // Constrói a string de busca para o backend a partir dos filtros
     let questionParts: string[] = [];
 
     if (filters.palavrasChave.length > 0) {
@@ -104,7 +122,10 @@ export default function Home() {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          blacklist: filters.blacklist // Envia a blacklist para o backend
+        }),
       });
       const data = await res.json();
 
@@ -146,16 +167,6 @@ export default function Home() {
     }
     return items;
   }, [currentPage, totalPages]);
-
-  // --- Funções de formatação ---
-  const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
-  const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
-  const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
-    const status = s?.toUpperCase() || '';
-    if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
-    if (["DIVULGADA NO PNCP"].includes(status)) return "default";
-    return "secondary";
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
