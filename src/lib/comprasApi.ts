@@ -87,17 +87,17 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
 
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
+// Helper function para adicionar um atraso entre as requisições
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function buscarLicitacoesPNCP(
  filters: ExtractedFilters,
- page = 1,
- perPage = 50
 ): Promise<ApiResponse<PncpApiResponse<PncpLicitacao>>> {
  try {
   console.log(`📞 Chamando buscarLicitacoesPNCP com filtros:`, filters);
 
   const baseParams: Record<string, unknown> = {
-   pagina: page,
-   tamanhoPagina: perPage,
+   tamanhoPagina: 50, // MODIFICAÇÃO: Alterado de 500 para 50 para corrigir o erro "Tamanho de página inválido".
   };
 
   if (!filters.dataInicial || !filters.dataFinal) {
@@ -115,44 +115,53 @@ export async function buscarLicitacoesPNCP(
   }
 
   const endpoint = '/v1/contratacoes/publicacao';
-  let allLicitacoes: PncpLicitacao[] = [];
+  const allLicitacoes: PncpLicitacao[] = [];
   let totalCombinedRecords = 0;
 
-  if (filters.modalidade) {
-   const codigoModalidade = getPncpModalidadeCodigo(filters.modalidade);
-   if (codigoModalidade !== undefined) {
-    const params = { ...baseParams, codigoModalidadeContratacao: codigoModalidade };
-    const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
+  const modalidadesParaBuscar = filters.modalidade
+   ? ([getPncpModalidadeCodigo(filters.modalidade)].filter(Boolean) as number[])
+   : ALL_MODALITY_CODES;
 
-    if (response.data && Array.isArray(response.data.data)) {
-     allLicitacoes = response.data.data;
-     totalCombinedRecords = response.data.totalRegistros;
-    } else {
-     console.error("❌ Estrutura inesperada na resposta da API PNCP (Licitações - Modalidade Específica):", response.data);
-     return { success: false, error: "Resposta da API PNCP inválida (estrutura inesperada).", status: 500 };
-    }
-   } else {
-    console.warn(`⚠️ Modalidade "${filters.modalidade}" não mapeada para um código do PNCP. Nenhuma busca será realizada para a modalidade.`);
-    return { success: true, data: { data: [], totalRegistros: 0, totalPaginas: 1, numeroPagina: 1, paginasRestantes: 0, empty: true }, status: 200 };
-   }
-  } else { // Se nenhuma modalidade foi especificada, busca em todas
-   console.log("ℹ️ Nenhuma modalidade especificada. Buscando em todas as modalidades disponíveis.");
-   for (const modalidadeCode of ALL_MODALITY_CODES) {
-    const params = { ...baseParams, codigoModalidadeContratacao: modalidadeCode };
+  for (const modalidadeCode of modalidadesParaBuscar) {
+   let currentPage = 1;
+   let totalPages = 1;
+
+   console.log(`ℹ️ Buscando licitações para modalidade código: ${modalidadeCode}`);
+
+   while (currentPage <= totalPages) {
+    const params = {
+     ...baseParams,
+     codigoModalidadeContratacao: modalidadeCode,
+     pagina: currentPage,
+    };
     try {
      const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
      if (response.data && Array.isArray(response.data.data)) {
-      allLicitacoes = allLicitacoes.concat(response.data.data);
-      totalCombinedRecords += response.data.totalRegistros;
+      allLicitacoes.push(...response.data.data);
+
+      if (currentPage === 1 && response.data.totalRegistros > 0) {
+       totalCombinedRecords += response.data.totalRegistros;
+       totalPages = response.data.totalPaginas;
+       console.log(`  -> Modalidade ${modalidadeCode}: ${response.data.totalRegistros} registros encontrados em ${totalPages} páginas.`);
+      } else if (currentPage === 1) {
+       // Se não houver registros para esta modalidade, interrompe o loop de paginação para ela.
+       break;
+      }
      } else {
-      console.warn(`⚠️ Resposta inesperada para modalidade ${modalidadeCode}. Prosseguindo...`, response.data);
+      console.warn(`⚠️ Resposta inesperada para modalidade ${modalidadeCode}, página ${currentPage}. Prosseguindo...`, response.data);
+      break; // Sai do loop da página atual em caso de erro
      }
     } catch (err: unknown) {
-     const errorResponse = handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}`);
-     console.warn(`⚠️ Erro ao buscar modalidade ${modalidadeCode}. Prosseguindo...`, errorResponse.error);
+     const errorResponse = handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}`);
+     console.warn(`⚠️ Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}. Prosseguindo...`, errorResponse.error);
+     break; // Sai do loop da página atual em caso de erro
     }
+    currentPage++;
    }
+   // MODIFICAÇÃO: Adiciona um atraso entre as buscas de cada modalidade para evitar o erro 429 (Too Many Requests).
+   await delay(200);
   }
+
 
   console.log(`✅ Sucesso ao buscar licitações (editais e avisos) do PNCP. Total de registros combinados: ${totalCombinedRecords}`);
 
@@ -173,6 +182,7 @@ export async function buscarLicitacoesPNCP(
   return handleApiError(err, 'Erro geral ao buscar licitações na API PNCP');
  }
 }
+
 
 export async function getDetalhesLicitacao(boletimId: number): Promise<ApiResponse<ComprasLicitacao>> {
  try {
