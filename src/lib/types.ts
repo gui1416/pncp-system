@@ -1,4 +1,3 @@
-// src/lib/types.ts
 export interface OrgaoCompras {
  nomeOrgaoEntidade: string;
  nomeUnidadeOrgao: string;
@@ -97,7 +96,6 @@ export interface VwFtContrato {
  unidadesRequisitantes?: string;
 }
 
-// Interface para contratos da API de CONSULTAS do PNCP (/v1/contratos)
 export interface PncpContrato {
  numeroControlePNCP: string;
  numeroControlePNCPCompra: string;
@@ -130,13 +128,13 @@ export interface PncpContrato {
   ufSigla: string;
   ufNome: string;
  };
- orgaoSubRogado?: { // Opcional, pode não vir
+ orgaoSubRogado?: {
   cnpj: string;
   razaoSocial: string;
   poderId: string;
   esferaId: string;
  };
- unidadeSubRogada?: { // Opcional, pode não vir
+ unidadeSubRogada?: {
   codigoUnidade: string;
   nomeUnidade: string;
   municipioId: number;
@@ -147,9 +145,9 @@ export interface PncpContrato {
  tipoPessoa: string;
  niFornecedor: string;
  nomeRazaoSocialFornecedor: string;
- tipoPessoaSubContratada?: string; // Opcional
- niFornecedorSubContratado?: string; // Opcional
- nomeFornecedorSubContratado?: string; // Opcional
+ tipoPessoaSubContratada?: string;
+ niFornecedorSubContratado?: string;
+ nomeFornecedorSubContratado?: string;
  valorInicial: number;
  numeroParcelas: number;
  valorParcela: number;
@@ -160,11 +158,74 @@ export interface PncpContrato {
  dataVigenciaFim: string;
  numeroRetificacao: number;
  usuarioNome: string;
- dataPublicacaoPncp: string; // Data e Hora
- dataAtualizacao: string; // Data e Hora
- identificadorCipi?: string; // Opcional
- urlCipi?: string; // Opcional
+ dataPublicacaoPncp: string;
+ dataAtualizacao: string;
+ identificadorCipi?: string;
+ urlCipi?: string;
 }
+
+export interface PncpLicitacao {
+ numeroControlePNCP: string;
+ numeroCompra: string;
+ anoCompra: number;
+ processo?: string;
+ tipoInstrumentoConvocatorioId: number;
+ tipoInstrumentoConvocatorioNome: string;
+ modalidadeId: number;
+ modalidadeNome: string;
+ modoDisputaId: number;
+ modoDisputaNome: string;
+ situacaoCompraId: number;
+ situacaoCompraNome: string;
+ objetoCompra: string;
+ informacaoComplementar?: string;
+ srp: boolean;
+ amparoLegal?: {
+  codigo: number;
+  nome: string;
+  descricao: string;
+ };
+ valorTotalEstimado?: number;
+ valorTotalHomologado?: number;
+ dataAberturaProposta?: string;
+ dataEncerramentoProposta?: string;
+ dataPublicacaoPncp: string;
+ dataInclusao: string;
+ dataAtualizacao: string;
+ sequencialCompra: number;
+ orgaoEntidade: {
+  cnpj: string;
+  razaoSocial: string;
+  poderId: string;
+  esferaId: string;
+ };
+ unidadeOrgao: {
+  codigoUnidade: string;
+  nomeUnidade: string;
+  codigoIbge: number;
+  municipioNome: string;
+  ufSigla: string;
+  ufNome: string;
+ };
+ orgaoSubRogado?: {
+  cnpj: string;
+  razaoSocial: string;
+  poderId: string;
+  esferaId: string;
+ };
+ unidadeSubRogada?: {
+  codigoUnidade: string;
+  nomeUnidade: string;
+  codigoIbge: number;
+  municipioNome: string;
+  ufSigla: string;
+  ufNome: string;
+ };
+ usuarioNome?: string;
+ linkSistemaOrigem?: string;
+ justificativaPresencial?: string;
+}
+
 
 export interface ApiResponse<T = unknown> {
  success: boolean;
@@ -180,9 +241,9 @@ export interface ComprasApiResponse {
  paginasRestantes: number;
 }
 
-// Resposta padrão da API de Consultas do PNCP
-export interface PncpContratosApiResponse {
- data: PncpContrato[]; // Os dados dos registros encontrados
+
+export interface PncpApiResponse<T> {
+ data: T[];
  totalRegistros: number;
  totalPaginas: number;
  numeroPagina: number;

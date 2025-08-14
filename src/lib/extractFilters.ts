@@ -1,3 +1,4 @@
+// src/lib/extractFilters.ts
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 import { format } from 'date-fns';
 
@@ -17,7 +18,115 @@ export interface ExtractedFilters {
   modalidade: string | null;
   dataInicial: string | null;
   dataFinal: string | null;
+  blacklist: string[];
+  smartBlacklist: string[];
 }
+
+
+const FIXED_GLOBAL_BLACKLIST = [
+  "teste",
+  "simulação",
+  "cancelado",
+  "leilão",
+  "dedetização",
+  "controle de pragas",
+  "poços artesianos",
+  "desratização",
+  "pombo",
+  "ratos",
+  "controle de pragas urbanas",
+  "descupinização",
+  "banheiro químico",
+  "desentupimento de canos e ralos",
+  "buffet",
+  "coração",
+  "organização de espaços",
+  "salgados fritos e assados",
+  "bolos",
+  "brinquedos",
+  "infláveis",
+  "pula pula",
+  "máquina algodão doce",
+  "pipoca",
+  "sessão solene",
+  "homenagem",
+  "fornecimento de pão",
+  "confeitaria",
+  "padaria",
+  "doces",
+  "ocupação de espaço físico",
+  "picolé",
+  "algodão doce",
+  "coquetel",
+  "panificação",
+  "ações institucionais",
+  "sociais",
+  "reuniões",
+  "eventos",
+  "biscoitos",
+  "praça de alimentação",
+  "agricultores familiares",
+  "familiares rurais",
+  "festa",
+  "hotelaria",
+  "feiras livres",
+  "camarim",
+  "sem motorista",
+  "sem condutor",
+  "ônibus e micro-ônibus",
+  "caminhão",
+  "máquinas",
+  "veículos pesados",
+  "unidades habitações",
+  "audiovisual",
+  "imagens",
+  "locução",
+  "panfletos",
+  "produção de cards",
+  "outdoor",
+  "cartazes",
+  "trabalho social",
+  "sem fins lucrativos",
+  "vagas de estágio remunerado",
+  "curso",
+  "armamento",
+  "pistolas",
+  "musica",
+  "multi-instrumentista",
+  "sociedade civil",
+  "leilões",
+  "alienação de bens",
+  "leiloeiros",
+  "lavagem automotiva",
+  "samba",
+  "pagode",
+  "rock",
+  "sertanejo",
+  "lavagem dos veiculos",
+  "teatro",
+  "móveis",
+  "imóveis",
+  "ginástica",
+  "musculação",
+  "dança",
+  "imprensa",
+  "segurança privada",
+  "desfile",
+  "albergagem",
+  "veterinária",
+  "usina",
+  "professor",
+  "recreativos",
+  "arbitragem",
+  "assesoria",
+  "consultoria",
+  "cerimonialista",
+  "campeonatos",
+  "recapeamento",
+  "decoração natalina",
+  "pavimentação",
+  "botoeiras",
+];
 
 export async function extractFilters(question: string): Promise<ExtractedFilters> {
   const defaultResponse: ExtractedFilters = {
@@ -29,6 +138,8 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
     modalidade: null,
     dataInicial: null,
     dataFinal: null,
+    blacklist: [],
+    smartBlacklist: [],
   };
 
   if (!question || typeof question !== 'string' || !question.trim()) {
@@ -40,6 +151,7 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   const hoje = new Date();
   const dataAtualFormatada = format(hoje, 'yyyy-MM-dd');
 
+  // --- PROMPT OTIMIZADO ---
   const prompt = `
 <MISSION>
 Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
@@ -75,9 +187,11 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
     * **Sinônimos**: "facilities", "apoio administrativo", "recepcionista", "porteiro", "copeiragem", "serviços gerais".
 
 7.  **Limpeza (Predial, Escolar e Hospitalar):**
-    * **Limpeza Predial**: "limpeza predial", "conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso".
-    * **Limpeza Escolar**: "limpeza escolar", "higienização de escolas", "conservação de ambiente escolar".
-    * **Limpeza Hospitalar**: "limpeza hospitalar", "higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde".
+    * **Termos-chave**: "limpeza predial", "limpeza escolar", "limpeza hospitalar", "limpeza".
+    * **Sinônimos**: "limpeza e conservação", "higienização", "serviços de limpeza",
+        "Limpeza Predial": "conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso".
+        "Limpeza Escolar": "higienização de escolas", "conservação de ambiente escolar".
+        "Limpeza Hospitalar": "higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde".
 
 8.  **PPP e Concessões:**
     * **Termos-chave**: "ppp", "parceria público-privada", "concessão administrativa", "concessão patrocinada", "ppi", "pmi".
@@ -86,10 +200,20 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
 9.  **Engenharia (Construção, Reforma, Manutenção):**
     * **Termos-chave**: "engenharia", "construção civil", "reforma predial", "manutenção predial", "obras".
     * **Sinônimos**: "serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva".
+
+**Modalidades de Licitação Conhecidas**: "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso".
+
+<GLOBAL_EXCLUSIONS>
+Os seguintes termos NUNCA devem aparecer em nenhuma licitação, independentemente da pergunta do usuário. Eles devem ser SEMPRE incluídos na 'blacklist' de saída:
+- ${FIXED_GLOBAL_BLACKLIST.map(term => `"${term}"`).join('\n- ')}
+</GLOBAL_EXCLUSIONS>
 </CONTEXT>
 
 <RULES>
-1.  **Mapeamento de Termos**: Identifique os ramos de atuação na pergunta do usuário. Popule 'palavrasChave' com os termos exatos da pergunta e os "Termos-chave" dos ramos correspondentes. Popule 'sinonimos' com os "Sinônimos" dos ramos. Se múltiplos ramos forem identificados, combine seus termos e sinônimos.
+1.  **Mapeamento de Termos**:
+    * Popule 'palavrasChave' com os termos exatos da pergunta e os "Termos-chave" dos ramos correspondentes.
+    * Popule 'sinonimos' com os "Sinônimos" dos ramos.
+    * Se múltiplos ramos forem identificados, combine seus termos e sinônimos.
 
 2.  **Extração de Datas**:
     * A data de hoje é ${dataAtualFormatada}. Use sempre o formato YYYY-MM-DD.
@@ -108,7 +232,18 @@ A seguir estão os ramos de atuação da empresa. Use esta lista como sua base d
     * Identifique o estado brasileiro mencionado. Retorne a sigla em maiúsculas (ex: "São Paulo" -> "SP", "Rio" -> "RJ"). Se não houver menção, retorne null.
 
 5.  **Extração de Modalidade**:
-    * Identifique modalidades de licitação como "Pregão Eletrônico", "Pregão Presencial", "Concorrência", "Tomada de Preços", "Convite", "Leilão", "Concurso". Se não houver menção, retorne null.
+    * Identifique modalidades de licitação da lista "Modalidades de Licitação Conhecidas". Se não houver menção, retorne null.
+
+6.  **Filtros de Rejeição (Blacklist e Smart Blacklist)**:
+    * **Blacklist**:
+        * Sempre inclua os termos de <GLOBAL_EXCLUSIONS> no array blacklist.
+        * Extraia termos que o usuário explicitamente NÃO deseja ver nos resultados (indicados por "excluindo", "exceto", "nada de", "sem"). Adicione-os ao array blacklist.
+        * Se um termo na blacklist for uma "Modalidade de Licitação Conhecida", ele também deve ser usado para filtrar modalidades no processamento posterior.
+    * **Smart Blacklist (Inferência Contextual)**:
+        * Se a pergunta do usuário focar **claramente em UM ÚNICO ramo de atuação** (identificado pelas 'palavrasChave' e 'sinonimos'), preencha smartBlacklist com os "Termos-chave" e "Sinônimos" dos **OUTROS ramos de atuação** que NÃO foram identificados na pergunta principal.
+        * Por exemplo, se a pergunta é "licitação de limpeza", e *apenas* o ramo "Limpeza" foi identificado nas 'palavrasChave', então termos de "Alimentação Prisional", "Frota com Motorista", etc., devem ser adicionados ao smartBlacklist.
+        * Esta inferência só deve ocorrer se a identificação do ramo principal for forte e singular.
+
 </RULES>
 
 <OUTPUT_FORMAT>
@@ -122,7 +257,9 @@ Sua única saída deve ser um objeto JSON válido, aderindo estritamente à segu
   "estado": string | null,
   "modalidade": string | null,
   "dataInicial": string | null,
-  "dataFinal": string | null
+  "dataFinal": string | null,
+  "blacklist": ["string"],
+  "smartBlacklist": ["string"]
 }
 </OUTPUT_FORMAT>
 
@@ -130,7 +267,7 @@ Sua única saída deve ser um objeto JSON válido, aderindo estritamente à segu
 Analise a pergunta do usuário e siga as regras para gerar o JSON.
 
 **Exemplo 1 (Cenário: hoje é 2025-06-11)**
-Pergunta: "Pregão eletrônico para limpeza hospitalar e também merenda para escolas no estado de SP dos últimos 7 dias, acima de 1 milhão"
+Pergunta: "Pregão eletrônico para limpeza hospitalar e também merenda para escolas no estado de SP dos últimos 7 dias, acima de 1 milhão, exceto limpeza de fachadas e sem incluir qualquer tipo de material descartável"
 JSON de Saída:
 {
   "palavrasChave": ["pregão eletrônico", "limpeza hospitalar", "merenda escolar", "alimentação escolar"],
@@ -140,22 +277,43 @@ JSON de Saída:
   "estado": "SP",
   "modalidade": "Pregão Eletrônico",
   "dataInicial": "2025-06-04",
-  "dataFinal": "2025-06-11"
+  "dataFinal": "2025-06-11",
+  "blacklist": ["teste", "simulação", "cancelado", "limpeza de fachadas"], // Inclui fixos e os extraídos
+  "smartBlacklist": [] // Smart Blacklist vazio pois múltiplos ramos (limpeza e merenda) foram identificados
 }
 
 **Exemplo 2**
-Pergunta: "obras de engenharia no Rio de Janeiro"
+Pergunta: "obras de engenharia no Rio de Janeiro, mas nada de reformas"
 JSON de Saída:
 {
   "palavrasChave": ["obras de engenharia", "construção civil", "reforma predial", "manutenção predial"],
-  "sinonimos": [["edificações", "infraestrutura predial"]],
+  "sinonimos": [["serviços de engenharia", "edificações", "infraestrutura predial", "manutenção preventiva", "manutenção corretiva"]],
   "valorMin": null,
   "valorMax": null,
   "estado": "RJ",
   "modalidade": null,
   "dataInicial": null,
-  "dataFinal": null
+  "dataFinal": null,
+  "blacklist": ["teste", "simulação", "cancelado", "reformas"], // Inclui fixos e os extraídos
+  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
 }
+
+**Exemplo 3**
+Pergunta: "Traga licitações de limpeza de São Paulo, exceto leilão"
+JSON de Saída:
+{
+  "palavrasChave": ["limpeza predial", "limpeza escolar", "limpeza hospitalar"],
+  "sinonimos": [["conservação e limpeza", "higienização de edifícios", "limpeza de fachadas", "tratamento de piso"], ["higienização de escolas", "conservação de ambiente escolar"], ["higienização hospitalar", "limpeza e desinfecção hospitalar", "limpeza terminal", "assepsia de ambientes", "gestão de resíduos de saúde"]],
+  "valorMin": null,
+  "valorMax": null,
+  "estado": "SP",
+  "modalidade": null,
+  "dataInicial": null,
+  "dataFinal": null,
+  "blacklist": ["teste", "simulação", "cancelado", "leilão"], // Inclui fixos e os extraídos
+  "smartBlacklist": ["alimentação prisional", /* ... outros termos de outros ramos ... */ ] // Inferido
+}
+
 </PROCESS_AND_EXAMPLES>
 
 ---
@@ -185,6 +343,14 @@ Pergunta do Usuário: "${question}"
     if (typeof parsedResponse.modalidade === 'string') validatedResponse.modalidade = parsedResponse.modalidade.trim();
     if (typeof parsedResponse.dataInicial === 'string') validatedResponse.dataInicial = parsedResponse.dataInicial;
     if (typeof parsedResponse.dataFinal === 'string') validatedResponse.dataFinal = parsedResponse.dataFinal;
+
+    // Process new blacklist and smartBlacklist fields
+    const explicitBlacklist = Array.isArray(parsedResponse.blacklist) ? parsedResponse.blacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase()) : [];
+    // Combina a blacklist explícita com a blacklist fixa global, removendo duplicatas
+    validatedResponse.blacklist = [...new Set([...FIXED_GLOBAL_BLACKLIST.map(term => term.toLowerCase()), ...explicitBlacklist])];
+
+    if (Array.isArray(parsedResponse.smartBlacklist)) validatedResponse.smartBlacklist = parsedResponse.smartBlacklist.filter(item => typeof item === 'string').map(item => item.toLowerCase());
+
 
     console.log("✅ Filtros extraídos e validados:", validatedResponse);
     return validatedResponse;
