@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       const modalidadeLicitacao = licitacao.modalidadeNome?.toLowerCase() || '';
       const ufLicitacao = licitacao.unidadeOrgao?.ufSigla?.toUpperCase() || '';
 
-      const palavrasFiltro = ['obra', 'construção', 'engenharia', 'reforma'];
+      const palavrasFiltro = ['obra', 'construção', 'engenharia', 'reforma', 'impermeabilização'];
 
       const contemPalavraFiltro = palavrasFiltro.some(palavra => objetoLicitacao.includes(palavra));
 
