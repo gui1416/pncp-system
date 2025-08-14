@@ -42,8 +42,7 @@ export default function Home() {
     return "secondary";
   };
 
-
-  // MODIFICAÇÃO: A lógica de filtragem agora inclui mais campos.
+  // Filtra os resultados locais com base no input de pesquisa
   const filteredResults = useMemo(() => {
     if (!searchTerm.trim()) return allResults;
 
@@ -79,9 +78,10 @@ export default function Home() {
     setAllResults([]);
     setCurrentPage(1);
     setHasSearched(true);
-    setSearchTerm(""); // Limpa a busca local ao aplicar novos filtros
+    setSearchTerm("");
 
-    let questionParts: string[] = [];
+    // CORREÇÃO: Alterado de 'let' para 'const'
+    const questionParts: string[] = [];
 
     if (filters.palavrasChave.length > 0) {
       questionParts.push(`sobre ${filters.palavrasChave.join(' ou ')}`);
@@ -124,7 +124,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
-          blacklist: filters.blacklist // Envia a blacklist para o backend
+          blacklist: filters.blacklist
         }),
       });
       const data = await res.json();
